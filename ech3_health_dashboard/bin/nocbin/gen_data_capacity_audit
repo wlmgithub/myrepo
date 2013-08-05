@@ -1,0 +1,81 @@
+#!/usr/bin/perl -w
+use strict;
+
+### globals
+my $DATA_DIR="/Library/WebServer/Documents/dashboard/data/capacity_audit";
+
+
+# glulist -f prod-ela4 -s security-auth  | wc -l
+
+my $glulist = "/usr/local/foobar/bin/glulist";
+
+print "working via GLU API, it takes about 20 minutes to complete  ... \n";
+my @all_services = get_all_services_in_ela4();
+
+#print "@all_services\n";
+
+
+# no dust please
+cleanup_data_dir();
+
+
+for my $service ( @all_services ) {
+  
+  print "auditing $service ...\n";
+
+  my @list_for_ech3 = `$glulist -f prod-ech3 -s $service`;
+  my @list_for_ela4 = `$glulist -f prod-ela4 -s $service`;
+
+#  print "ech3: \n";
+#  print @list_for_ech3, "\n";
+#  print scalar @list_for_ech3, "\n";
+#  
+#  print "ela4: \n";
+#  print @list_for_ela4, "\n";
+#  print scalar @list_for_ela4, "\n";
+ 
+  ### only handle case where # of machines are different: ech3 vs. ela4
+  if ( @list_for_ech3 != @list_for_ela4 ) {
+
+#    print "===handle $service===\n";
+    my $fname_ech3 = "$DATA_DIR/$service.ech3";
+    my $fname_ela4 = "$DATA_DIR/$service.ela4";
+
+    open my $fh_ech3, ">$fname_ech3" or die "cannot write to file: $fname_ech3: $!\n";
+    print $fh_ech3 @list_for_ech3;
+    close $fh_ech3;
+    chmod 0777, $fname_ech3;
+
+    open my $fh_ela4, ">$fname_ela4" or die "cannot write to file: $fname_ela4: $!\n";
+    print $fh_ela4 @list_for_ela4;
+    close $fh_ela4;
+    chmod 0777, $fname_ela4;
+
+  }
+
+
+}
+
+### subs
+
+sub get_all_services_in_ela4 {
+
+  chomp( my @s = `$glulist  -f prod-ela4` );
+
+  return @s if wantarray;
+
+}
+
+
+sub cleanup_data_dir {
+
+  opendir D, "$DATA_DIR";
+  for my $file ( readdir(D) ) {
+    next if  $file =~ /^\./;
+    unlink "$DATA_DIR/$file";
+  }
+  closedir D;
+
+}
+
+

@@ -1,0 +1,43 @@
+<?= $this->partial('header.phtml', array(
+    'from' => 'search','urlHome' => $this->urlHome)); ?>
+<?php if ($this->value == 1){ ?>
+<div class="clearfix" style="padding:5px;width:100%;">
+	<a href="<?= $this->urlHome ?>/index/new" >[Create New Release Vehicle ID]</a>
+</div>	
+<?php } ?>
+
+
+<table id='myTable' class='tablesorter'><thead><tr>
+<?php if ($this->value == 1){ ?>
+	<th style='width:15%;'>Action</th>
+<?php } ?>
+<th>Release Vehicle ID</th><th style='width:15%;'>Created</th><th style='width:15%;'>Owner</th></tr></thead>
+<tbody>
+
+<?php foreach ($this->idList as $id) { ?>
+
+	<tr>
+	<?php if ($this->value == 1){ ?>
+		<?php 	
+		if ($id->executed != 2) {
+			$edit =  "<a href='" . $this->urlHome . "/index/editpage?id=" . $id->release_vehicle_id . "'>edit</a>&nbsp;|&nbsp;";
+		} else {
+			$edit="";
+		}
+		?>
+	<td><?= $edit ?><a href="<?= $this->urlHome ?>/index/copypage?id=<?= $id->release_vehicle_id ?>">copy</a>&nbsp;|&nbsp;<a  href="<?= $this->urlHome ?>/index/execute?id=<?= $id->release_vehicle_id ?>">execute</a></td>
+
+<?php } ?>
+
+	<td><a href ="<?= $this->urlHome ?>/index/execute?id=<?= $id->release_vehicle_id ?>" ><?= $id->release_vehicle_id ?></a></td><td><?= $id->created ?></td><td><?= $id->username ?></td>
+
+	</tr>
+
+<?php } ?>
+
+
+</tbody>
+</table>
+
+<?= $this->partial('footer.phtml', array(
+    'from' => 'search','urlHome' => $this->urlHome)); ?>

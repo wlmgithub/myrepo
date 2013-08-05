@@ -1,0 +1,3 @@
+
+ sudo /export/apps/jdk/JDK-1_6_0_16/usr/jdk/jdk1.6.0_16/bin/jmap  -dump:file=foo.dump  -F  -d64 26070
+

@@ -1,0 +1,43 @@
+<?= $this->partial('header.phtml', array(
+    'from' => 'main','urlHome' => $this->urlHome)); ?>
+    
+<script type="text/javascript">
+/*$(document).ready(function() {
+	$("form").submit(function(event){
+		event.preventDefault(); 
+		var str = $(this).serialize();
+		$.ajax({
+			type: "POST",
+			url: url_home + "/index/deploy",
+			data: str
+		});
+		$(this).find("input.submit").blur();
+		var value = $(this).find("input.submit").val();
+		$(this).find("input.submit").attr("disabled","true").attr("value", value + " in Progress...");
+		this.submit();
+	});
+
+
+});*/
+</script>
+<table class='tablesorter'><thead><tr><th>Owner</th><th>Component Name</th><th>Machine Name</th><th style="width:20%;">Action</th></tr></thead><tbody>
+<?php foreach ($this->components as $key => $value) { 
+	$attribute;
+	$value;
+	if ($value == 0 ) {
+		$attribute="";
+		$value = $this->task;
+	}elseif ($value == 1){
+		$attribute = 'disabled="true"';
+		$value = $this->task . "in Progress...";
+	}else {
+		$attribute = 'disabled="true"';
+		$value = $this->task . "is Complete...";
+	}
+?>
+	<tr><td> <?= $this->owner ?> </td><td><?= $key ?> </td><td><?= $key ?> </td><td><form method="post" action="<?= $this->urlHome ?>/index/ssh" ><input type="hidden" name="owner" value="<?= $this->owner ?>" /><input type="hidden" name="form_submitted" value="1" /><input type="hidden" name="machine" value="<?= $key ?>" /><input type="hidden" name="component" value="<?= $key ?>" /><input type="hidden" name="task" value="<?= $this->task ?>" /><input type="hidden" name="release_vehicle_id" value="<?= $this->id ?>" />
+	<input class='submit' type="submit" <?= $attribute ?> value="<?= $value ?>" /></form></td></tr>
+<?php } ?>
+</tbody></table>
+<?= $this->partial('footer.phtml', array(
+    'from' => 'main','urlHome' => $this->urlHome)); ?>

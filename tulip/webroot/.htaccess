@@ -1,0 +1,2 @@
+RewriteEngine on
+RewriteRule !(blog)|\.(js|ico|gif|jpg|png|css|kml|xml)$ index.php

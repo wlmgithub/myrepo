@@ -1,0 +1,27 @@
+<?= $this->partial('header.phtml', array(
+    'from' => 'gluconsole', 'urlHome' => $this->urlHome)); ?>
+
+<!--
+<?= $this->urlHome; ?>
+-->
+
+<ul>
+<li> <a href="https://ech3-glu01.prod.foobar.com:9099/console/" target="_blank"> ECH3 GLU Console </a> </li>
+<br />
+<li> <a href="https://gluconsole.corp.foobar.com:8484/console/" target="_blank"> STG GLU Console </a> </li>
+<br />
+<li> <a href="https://esv4-fe04.corp:8484/console/dashboard" target="_blank"> EI1 GLU Console </a> </li>
+<br />
+<li> <a href="https://esv4-fe08.corp:8484/console/dashboard" target="_blank"> EI3 GLU Console </a> </li>
+<br />
+<li> <a href="https://ela4-glu03.prod.foobar.com:9099/console/dashboard" target="_blank"> ELA4 GLU Console </a> </li>
+<br />
+<li> <a href="https://iwww.corp.foobar.com/wiki/cf/display/SOP/GLU+howto+documentation+for+SiteOps" target="_blank"> GLU HowTo Wiki </a> </li>
+</ul>
+
+<h2>
+<a href='http://tools01.corp.foobar.com:8080/' target='_blank'>  Tools Homepage </a>
+</h2>
+
+<?= $this->partial('footer.phtml', array(
+    'from' => 'search','urlHome' => $this->urlHome)); ?>

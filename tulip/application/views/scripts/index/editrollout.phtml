@@ -1,0 +1,106 @@
+<?= $this->partial('header.phtml', array(
+    'from' => 'plan','urlHome' => $this->urlHome)); ?>
+    
+<?php if ($this->message) { ?>
+	<?= $this->message ?>
+<?php }else { ?>
+<div style="text-align:center;padding:10px;font-size:12px;">Release Vehicle ID: &nbsp; <b><?= $this->id ?></b> </div>
+<form id="plan" method="post" action="<?= $this->urlHome ?>/index/plan"  >
+<input type="hidden" name="release_vehicle_id" value="<?= $this->id ?>"/>
+<input type="hidden" name="form_submitted" value="1" />
+
+<table id="dataentry">
+<tr id="header">
+<th>&nbsp;</th>
+<th>Step #</th>
+<th>Sub Step #</th>
+<th>Tasks</th>
+<th>Owner</th>
+<th>Components/DB</th>
+<th>Notes</th>
+<th>Status</th>
+<th>No Start</th>
+<th><input type="button" value="[+]" class="add" /></th>
+</tr>
+<?php if (count($this->plan)) { ?>
+	<?php foreach ($this->plan as $p)  { ?>
+	<?php $count++; ?>
+	<tr>
+	<td><input type="button" value="[x]" class="delete" /></td>
+	<td><input type="text"  class="step" name="step[]" value="<?= $p->step ?>"/></td>
+	<td><input type="text" class="text" name="sub_step[]" value="<?= $p->sub_step ?>" /></td>
+	<td>
+		<?= $this->taskList($p->task) ?>
+	</td>
+	<td>
+		<?= $this->userList($p->owner) ?>
+	</td>
+	<td class="comp">
+		<?= $this->compSelect("current_comp", $p->components ) ?>
+	</td>
+<td>
+	<input type="text" class="text" name="notes[]" value="<?= $p->notes ?>" />
+</td>
+<td>
+	<input type="text" class="text" name="status[]" value="<?= $p->status ?>" />
+</td>
+	<td><input type="text" class="text" name="no_start[]" value="<?= $p->no_start ?>" /></td>
+	<td>&nbsp;</td>
+	</tr>
+	<?php } ?>
+<?php }else {  ?>
+	<tr>
+	<td><input type="button" value="[x]" class="delete" /></td>
+	<td><input type="text" class="step" name="step[]" /></td>
+	<td><input type="text" class="text" name="sub_step[]" /></td>
+	<td>
+		<?= $this->taskList() ?>
+	</td>
+	<td>
+		<?= $this->userList() ?>
+	</td>
+	<td class="comp">
+		<?= $this->compSelect("current_comp") ?>
+	</td>
+<td>
+	<input type="text" class="text" name="notes[]" value="<?= $p->notes ?>" />
+</td>
+<td>
+	<input type="text" class="text" name="status[]" value="<?= $p->status ?>" />
+</td>
+	<td><input type="text" class="text" name="no_start[]" /></td>
+	<td>&nbsp;</td>
+	</tr>
+<?php } ?>
+<tr id="invisible">
+<td><input type="button" value="[x]" class="delete" /></td>
+<td><input type="text" class="step" name="step[]" /></td>
+<td><input type="text" class="text" name="sub_step[]" /></td>
+<td>
+	<?= $this->taskList() ?>
+</td>
+<td>
+	<?= $this->userList() ?>
+</td>
+<td class="comp">
+	<?= $this->compSelect() ?>
+</td>
+<td><input type="text" class="text" name="no_start[]" /></td>
+<td>&nbsp;</td>
+</tr>
+</table>
+<input type="submit" value="Submit" />
+</form>
+
+
+
+<script>
+$(document).ready(function() {
+  $("#dataentry").tableDnD();
+});
+</script>
+
+
+<?php }?>
+<?= $this->partial('footer.phtml', array(
+    'from' => 'plan','urlHome' => $this->urlHome)); ?>

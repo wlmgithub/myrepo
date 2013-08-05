@@ -1,0 +1,58 @@
+
+/Users/lwang/junk $ perl f.pl
+bbb     9
+aaa     21
+ccc     6
+/Users/lwang/junk $ python f.py
+aaa     21
+bbb     9
+ccc     6
+/Users/lwang/junk $ ruby f.rb
+aaa     21
+bbb     9
+ccc     6
+/Users/lwang/junk $ php f.php
+aaa     21
+bbb     9
+ccc     6
+/Users/lwang/junk $ scala f.scala 
+aaa     21
+bbb     9
+ccc     6
+
+
+
+
+/Users/lwang/junk $ perl -v
+
+This is perl, v5.8.9 built for darwin-2level
+
+Copyright 1987-2008, Larry Wall
+
+Perl may be copied only under the terms of either the Artistic License or the
+GNU General Public License, which may be found in the Perl 5 source kit.
+
+Complete documentation for Perl, including FAQ lists, should be found on
+this system using "man perl" or "perldoc perl".  If you have access to the
+Internet, point your browser at http://www.perl.org/, the Perl Home Page.
+
+
+/Users/lwang/junk $ python -V
+Python 2.6.1
+
+
+/Users/lwang/junk $ ruby -v
+ruby 1.8.7 (2009-06-12 patchlevel 174) [universal-darwin10.0]
+
+
+/Users/lwang/junk $ php -v
+PHP 5.3.4 (cli) (built: Dec 15 2010 12:15:07) 
+Copyright (c) 1997-2010 The PHP Group
+Zend Engine v2.3.0, Copyright (c) 1998-2010 Zend Technologies
+
+
+/Users/lwang/junk $ scala -version
+Scala code runner version 2.9.0.1 -- Copyright 2002-2011, LAMP/EPFL
+
+
+

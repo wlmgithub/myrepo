@@ -1,0 +1,14 @@
+<?= $this->partial('header.phtml', array(
+    'from' => 'cfg2', 'urlHome' => $this->urlHome)); ?>
+
+<ul>
+<!--
+<li> <a href='' target='_blank'> Components in Config 2.0 </a></li>
+-->
+<li> <a href='http://rotozip.corp.foobar.com/cgi-bin/lwang/rb/cfg2/show.cgi' target='_blank'> Components in Config 2.0 (per containers_OPS.xml) </a></li>
+<li> <a href='http://tools01.corp.foobar.com:8889'  target='_blank'> Components in Config 2.0 (per GLU API) </a></li>
+</ul>
+
+
+<?= $this->partial('footer.phtml', array(
+    'from' => 'search','urlHome' => $this->urlHome)); ?>

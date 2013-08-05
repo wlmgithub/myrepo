@@ -1,0 +1,888 @@
+#!/usr/bin/env python
+#
+# lwang: syncit from svn repo to ccs server..... another throw-away thingy, no need to make it too complicated
+#
+#
+# sample run:
+# 	./syncit  -v -e ei1 -c  zzztest    -r R1040  -E 
+#
+# Assumptions:
+#   * branch names are named as: CONFIG_Rnnnn, e.g., CONFIG_R1040 for non-prod envs
+#   * branch names are named as: PROD_Rnnnn, e.g., PROD_R1046 for prod envs
+#	* branches are created in lirepo/itops/branches
+#
+###########################################################################
+#                              ACTION TABLE
+###########################################################################
+#              Limited Release  |   Daily Release  |  Monolithic Release
+#  toplevel         x                   \/                  x
+#  app              \/                  \/                  \/
+#  server*          \/                  \/                  \/
+###########################################################################
+#
+from __future__ import with_statement
+import sys
+import os
+import re
+import subprocess
+from optparse import OptionParser
+from socket import gethostname
+import atexit
+import shutil
+import urllib
+
+url_root = 'svn+ssh://svn.corp.foobar.com/secure/siteops/ccs/branches'
+url_to_current_daily_release_txt = 'http://svn.corp.foobar.com/lirepo/itops/trunk/ccs/bin/CURRENT_DAILY_RELEASE.txt'
+
+if os.uname()[0] == 'SunOS':
+  ssh = '/bin/ssh -A -t -q '
+  sudo = '/usr/local/bin/sudo  '
+  rsync = '/usr/local/bin/rsync --backup  --exclude "LATEST" --cvs-exclude  -q -az '
+  svn = '/usr/local/bin/svn'
+elif os.uname()[0] == 'Darwin' or os.uname()[0] == 'Linux':
+  ssh = '/usr/bin/ssh -A -t -q '
+  sudo = '/usr/local/bin/sudo'
+  rsync = '/usr/bin/rsync  --rsync-path=/usr/local/bin/rsync --backup --exclude "LATEST" --cvs-exclude  -q -az '
+  svn = '/usr/bin/svn'
+else:
+  print >>sys.stderr, "Sorry, your platform is not currently supported yet."
+  sys.exit(1)
+
+bindir = os.path.join( os.environ['ITOPS_HOME'], 'ccs/bin' )
+sys.path.append( bindir )
+from foobar.ccs15.env import Env
+
+
+def get_list_of_limited_rels(ssh,  ccs_host, ccs_dir_root ):
+  """
+  get a list of limited rels, e.g., 0.0.[987]*
+  """
+  cmd = "%s %s ' cd  %s; find . -name \"0.0.[987]*\" | sed -e \"s/.*\///\" | sort -u  '  2>/dev/null " % (ssh,  ccs_host, ccs_dir_root )
+  if debug:
+    print "Running cmd: " + cmd
+
+  p = subprocess.Popen([ cmd ], shell=True, bufsize=0, stdin=subprocess.PIPE, stdout=subprocess.PIPE, close_fds=True)
+  out = p.communicate()[0]
+  if not out.split() == None:
+    return out.split()
+  else:
+    return None
+
+
+def get_list_of_limited_rels_in_app(ssh,  ccs_host, ccs_dir_root, appname ):
+  """
+  get a list of limited rels, e.g., 0.0.[987]*
+  """
+  cmd = "%s %s 'if [ -d \"%s/%s\" ]; then cd  %s/%s; find . -name \"0.0.[987]*\" | sed -e \"s/.*\///\" | sort -u; fi'  2>/dev/null " \
+        % (ssh,  ccs_host, ccs_dir_root, appname,  ccs_dir_root, appname )
+  if debug:
+    print "Running cmd: " + cmd
+
+  p = subprocess.Popen([ cmd ], shell=True, bufsize=0, stdin=subprocess.PIPE, stdout=subprocess.PIPE, close_fds=True)
+  out = p.communicate()[0]
+  if not out.split() == None:
+    return out.split()
+  else:
+    return None
+
+
+def get_list_of_rels(ssh,  ccs_host, ccs_dir_root, ccsappname ):
+  cmd = "%s %s ' ls %s/%s '  2>/dev/null " % (ssh,  ccs_host, ccs_dir_root, ccsappname )
+  if debug:
+    print "cmd: " + cmd
+
+  p = subprocess.Popen([ cmd ], shell=True, bufsize=0, stdin=subprocess.PIPE, stdout=subprocess.PIPE, close_fds=True)
+  out = p.communicate()[0]
+  if not out.split() == None:
+    return out.split()
+  else:
+    return None
+
+
+def get_diff_of_list( l1, l2 ):
+  """
+  get the diff of lists l1 and l2:  l1 - l2
+  """
+  d = set(l1) - set(l2)
+  l = list(d)
+  l.sort()
+  return l
+
+
+def get_final_list( list ):
+  """ 
+  remove non 0.0.xxx items
+  """
+  final_list = [ item for item in list if '0.0.' in item ]
+  return final_list
+
+
+def run_ch_cmds(  ssh, ccs_host, ccs_dir_root, sudo):
+  if debug:
+    print "running chown and chmod"
+
+  cmd = "%s %s ' cd  %s; %s chown -R cm:app .; %s chmod -R 775 .  ' 2>/dev/null " % ( ssh, ccs_host, ccs_dir_root,  sudo, sudo )
+  if debug: 
+    print "Running cmd: " + cmd
+
+  run_cmd ( cmd )
+  
+  
+def warmup_sudo( ssh,  ccs_host, sudo ):
+  prompt = "Enter password (kerberos): "
+  pwd = getpass(prompt)
+  print "\n"
+  cmd = "echo %s | %s %s ' %s ls >/dev/null 2>&1 ' 2>/dev/null " % ( pwd, ssh, ccs_host, sudo ) 
+  if debug:
+    #print "Running cmd: " + cmd
+    print "INFO: running warmup_sudo"
+
+  run_cmd( cmd )
+
+
+def getpass(prompt="Enter password (kerberos): "):
+  import termios
+  fd = sys.stdin.fileno()
+  old = termios.tcgetattr(fd)
+  new = termios.tcgetattr(fd)
+  new[3] = new[3] & ~termios.ECHO   # lflags
+  try:
+    termios.tcsetattr(fd, termios.TCSADRAIN, new) 
+    passwd = raw_input(prompt)  
+  finally:
+    termios.tcsetattr(fd, termios.TCSADRAIN, old) 
+  return passwd
+
+
+def run_cmd( cmd ):
+  if debug:
+    print "running cmd: " + cmd
+  try:
+    retcode = subprocess.call( " %s " % cmd, shell=True )
+    if retcode < 0:
+      print >>sys.stderr, "Child was terminated by signal", -retcode      
+  except OSError, e:
+    print >>sys.stderr, "Execution failed: ", e
+
+
+def get_latest_ver_in_ccs( workdir, rsync, ssh, sudo, ccs_host, ccs_dir_root, ccsappname, options):
+  list_of_rels = get_list_of_rels(ssh,  ccs_host, ccs_dir_root, ccsappname)
+  if len(list_of_rels) == 0:
+    print >>sys.stderr,  'I did not find any existing rel numbers for %s... might be a new service?' % ccsappname
+    if options.execute:
+      if not options.noprompt:
+        reply = raw_input("Is this a new service? (y/n/i -- yes/no/ignore) ")
+        reply = reply.strip()
+      if options.noprompt or reply.startswith('y'):
+        # it's a new service, let's make a new one
+        release = options.release
+        new_relnum = release[1:]
+        create_brand_new_dir(  ssh, ccs_host, ccs_dir_root, ccsappname, sudo, new_relnum, options )
+        return new_relnum   # the newly created ver is the latest ver in ccs
+      elif reply.startswith('i'):
+        pass
+      else:
+        print >>sys.stderr, "You said it's not a new service, but I found no rel dir like 0.0.xxx for it. weird. quit."
+        sys.exit(1)
+    else:
+      print >>sys.stderr,  'would have created a new dir and sync it from repo.'
+      return None
+  else:
+    if debug:
+      print "list_of_rels: " + str(list_of_rels)
+
+  list_of_limited_rels = get_list_of_limited_rels(ssh,  ccs_host, ccs_dir_root )
+  if debug:
+    print "list_of_limited_rels: " + str(list_of_limited_rels )
+
+  list_of_rels_diff = get_diff_of_list( list_of_rels, list_of_limited_rels )
+  if debug:
+    print "list_of_rels_diff: " + str(list_of_rels_diff)
+
+  list_of_rels_final = get_final_list( list_of_rels_diff )
+  if debug:
+    print "list_of_rels_final: " + str(list_of_rels_final)
+
+  latest_ver_in_ccs = None
+
+  list_of_rels_final_stems = [  x.split('.')[2]   for x in list_of_rels_final ]
+
+  if not list_of_rels_final_stems:
+    return
+
+  latest_ver_in_ccs = max(list_of_rels_final_stems, key=int)
+
+  if options.debug:
+    print "latest_ver_in_ccs: " + latest_ver_in_ccs
+
+  return latest_ver_in_ccs
+
+
+def get_latest_ver_in_repo( workdir, ccsappname, options  ):
+  path_to_latest_file = None
+
+#  if options.release == 'R1040':
+#    path_to_latest_file = os.path.join( workdir, ccsappname, 'LATEST')
+#  else:
+#    path_to_latest_file = os.path.join( workdir, 'config', ccsappname, 'LATEST')
+
+  # Assuming branch convention is followed starting from R1040:  branches/CONFIG_Rxxxx/
+  path_to_latest_file = os.path.join( workdir, ccsappname, 'LATEST')
+
+  if os.path.isfile(path_to_latest_file):
+    if options.debug:
+      print "path to latest file: " + path_to_latest_file
+    latest_ver_in_repo = open( path_to_latest_file, 'r').read().rstrip()
+  else:
+    print >>sys.stderr, "No LATEST file found for %s in %s." % ( ccsappname, workdir )
+    sys.exit(1)
+     
+  if options.debug:
+    print "latest_ver_in_repo: " +  latest_ver_in_repo
+
+  return latest_ver_in_repo
+  
+
+def make_workdir_root():
+  workdir_root = os.path.join( os.environ['HOME'], '.syncit');
+  if not os.path.isdir(workdir_root):
+    os.mkdir(workdir_root)
+  return workdir_root
+
+def create_workdir( release, svn, ccs_dir_root, options ):
+  workdir_root = make_workdir_root()
+
+  # if limited or monolithic release, use the -r specified
+  if options.limited or options.monolithic:
+    release = options.release
+
+  work_url = url_root + '/' + 'CONFIG_' + release
+  workdir = workdir_root + '/' + 'CONFIG_' + release
+  env =  Env(options.envname)
+  if env.is_prod_env():
+    work_url = url_root + '/' + 'PROD_' + release
+    workdir = workdir_root + '/' + 'PROD_' + release
+
+  if os.path.isdir(workdir):
+    shutil.rmtree(workdir)
+
+  if options.ccsappname:
+    cmd_export_from = " %s/%s " % (work_url, options.ccsappname)
+    cmd_export_to = " %s/%s " % (workdir, options.ccsappname)
+  elif options.toplevel:
+    ccs_dir_root_suffix = ccs_dir_root.split('/')[-1]  
+    cmd_export_from = " %s/%s " % (work_url, ccs_dir_root_suffix)
+    cmd_export_to = " %s/%s " % (workdir, ccs_dir_root_suffix)
+  else:
+    cmd_export_from = " %s " % (work_url)
+    cmd_export_to = " %s " % (workdir)
+
+  cmd_export = " %s export -q --force  %s %s >/dev/null" % (svn, cmd_export_from, cmd_export_to)
+
+  if options.debug:
+    print "INFO: Running cmd: %s " % cmd_export
+  if options.verbose:
+    print "INFO: exporting into %s from %s " % (cmd_export_to, cmd_export_from)
+  run_cmd( cmd_export )
+
+  if options.ccsappname:
+    # always export toplevel extservices.springconfig and injected.properties
+    # /export/content/repository/EI1  -> EI1
+    ccs_dir_root_suffix = ccs_dir_root.split('/')[-1]  
+    cmd = " %s export -q  %s/%s  %s/%s >/dev/null" % (svn, work_url, ccs_dir_root_suffix, workdir, ccs_dir_root_suffix)
+    run_cmd(cmd)
+  
+  return workdir
+
+
+def syncit_from_repo_to_ccs( workdir, rsync,  ccs_host, ccs_dir_root, ccsappname, ver_num, options ):
+  # /export/content/repository/EI1  -> EI1
+  ccs_dir_root_suffix = ccs_dir_root.split('/')[-1]   
+
+  # always sync extservices.springconfig first
+  rsync_from = workdir + '/' + ccsappname + '/' + 'extservices.springconfig'
+  rsync_to = 'cm@' + ccs_host + ':' + ccs_dir_root + '/' + ccsappname + '/' + '0.0.' + ver_num
+  if os.path.isfile(rsync_from):
+    cmd = "%s %s %s   " % ( rsync, rsync_from, rsync_to )
+    if options.execute:
+      if options.verbose:
+        print "INFO: syncing from %s to %s" %  (rsync_from, rsync_to)
+      run_cmd( cmd )
+    else:
+      print "INFO: would have run: " + cmd 
+  else:
+    print >>sys.stderr, "WARNING: not found in repo: %s " %  ( rsync_from )
+ 
+  # if EI1/EI3/STG-ALPHA/STG-BETA  exists, sync it too
+  if os.path.isdir( workdir + '/' + ccsappname + '/' + ccs_dir_root_suffix ):
+    rsync_from = workdir + '/' + ccsappname + '/' + ccs_dir_root_suffix + '/'
+    # no that a new dir 'container' is added in repo to hold server conf and server xml 
+    # we need to filter it out while syncing configs
+    cmd = "%s --exclude 'container'  %s  %s   " % ( rsync, rsync_from, rsync_to )
+    if options.execute:
+      if options.verbose:
+        print "INFO: syncing from %s to %s" %  (rsync_from, rsync_to)
+      run_cmd( cmd )
+    else:
+      print "INFO: would have run: " + cmd 
+  else:
+    print >>sys.stderr, "WARNING: no env specific configs found in repo under %s " % ( workdir + '/' + ccsappname + '/' + ccs_dir_root_suffix  ) 
+   
+
+def create_brand_new_dir( ssh, ccs_host, ccs_dir_root, ccsappname, sudo, new_relnum, options  ):
+  """ create a brand new ccs dir for a new service """
+  new_rel = '0.0.%s' % new_relnum
+  cmd =  "%s %s ' cd  %s;  %s mkdir -p %s/%s ; %s chown -R cm:app  %s/%s ; %s chmod -R 775 %s/%s ' 2>/dev/null " % ( ssh, ccs_host, ccs_dir_root, sudo, ccsappname, new_rel,  sudo, ccsappname, new_rel, sudo, ccsappname, new_rel )
+  if debug: 
+    print "Running cmd: " + cmd
+  
+  if options.verbose:
+    print "INFO: making %s  for %s in %s on %s." % ( new_rel, ccsappname, ccs_dir_root, ccs_host)
+
+  run_cmd ( cmd )
+
+
+def create_limited_release_dir( ssh, ccs_host, ccs_dir_root, ccsappname, sudo, new_relnum, options ):
+  list_of_rels = get_list_of_rels(ssh,  ccs_host, ccs_dir_root, ccsappname)
+  if len(list_of_rels) == 0:
+    print >>sys.stderr,  'I did not find any existing rel numbers for %s... might be a new service?' % ccsappname
+    if options.execute:
+      if not options.noprompt:
+        reply = raw_input("Is this a new service? (y/n/i -- yes/no/ignore) ")
+        reply = reply.strip()
+      if options.noprompt or  reply.startswith('y'):
+        # it's a new service, let's make a new one
+        release = options.release
+        new_relnum = release[1:]
+        create_brand_new_dir(  ssh, ccs_host, ccs_dir_root, ccsappname, sudo, new_relnum, options )
+      elif reply.startswith('i'):
+        pass
+      else:
+        print >>sys.stderr, "You said it's not a new service, but I found no rel dir like 0.0.xxx for it. weird. quit."
+        sys.exit(1)
+    else:
+      print >>sys.stderr,  'would have created a new dir and sync it from repo.'
+  else:
+    if debug:
+      print "list_of_rels: " + str(list_of_rels)
+
+    if options.debug:
+      print "DEBUG: in create_limited_release_dir()"
+    new_rel = '0.0.%s' % new_relnum
+    cmd =  "%s %s ' cd  %s/%s; %s mkdir -p  %s ; %s chown -R cm:app %s; %s chmod -R 775 %s  ' 2>/dev/null " % ( ssh, ccs_host, ccs_dir_root, ccsappname, sudo, new_rel, sudo, new_rel, sudo, new_rel )
+    if options.debug:
+      print "Running cmd: " + cmd
+    if options.verbose:
+      print "INFO: creating limited release dir:  %s  for %s in %s on %s." % ( new_rel, ccsappname, ccs_dir_root, ccs_host)
+  
+    if options.execute:
+      run_cmd( cmd )
+    else:
+      print "INFO: would have run: " + cmd
+
+
+def make_new_rel_dir( ssh, ccs_host, ccs_dir_root, ccsappname, sudo, new_relnum, latest_relnum, options):
+  """
+  should be more appropriately named: copy_last_rel_dir_in_ccs
+  """
+  if options.debug:
+    print " in make_new_rel_dir()"
+  new_rel = '0.0.%s' % new_relnum
+  latest_rel = '0.0.%s' % latest_relnum
+#  cmd =  "%s %s ' cd  %s;  %s mkdir -p %s/%s ; %s chown -R cm:app  %s/%s ; %s chmod -R 775 %s/%s ' 2>/dev/null " % ( ssh, ccs_host, ccs_dir_root, sudo, ccsappname, new_rel,  sudo, ccsappname, new_rel, sudo, ccsappname, new_rel )
+  cmd =  "%s %s ' cd  %s/%s; %s cp -rpH  %s  %s  '  " % ( ssh, ccs_host, ccs_dir_root, ccsappname, sudo,  latest_rel,  new_rel )
+  if options.debug:
+    print "Running cmd: " + cmd
+  if options.verbose:
+    print "INFO: creating  %s from %s  for %s in %s on %s." % ( new_rel, latest_rel, ccsappname, ccs_dir_root, ccs_host)
+
+  if options.execute:
+    run_cmd( cmd )
+  else:
+    print "INFO: would have run: " + cmd
+
+  backup_env_level_stuff(ssh,  ccs_host, ccs_dir_root, options)
+
+
+def backup_env_level_stuff(ssh,  ccs_host, ccs_dir_root, options):
+  #
+  # rel: e.g., R1018
+  # for the time being, only env-level extservices.springconfig and injected.properties are backed up to  ENV_backup 
+  #
+  rel = options.release
+  cmd = "%s %s ' cd  %s;  if [ ! -f ENV_backup/extservices.springconfig.prepccs_bk_pre_%s ]; then %s cp -p extservices.springconfig  ENV_backup/extservices.springconfig.prepccs_bk_pre_%s; fi; if [ ! -f ENV_backup/injected.properties.prepccs_bk_pre_%s ]; then %s cp -p injected.properties ENV_backup/injected.properties.prepccs_bk_pre_%s; fi '  2>/dev/null " % (ssh,  ccs_host, ccs_dir_root, rel, sudo , rel, rel, sudo, rel)
+
+  if options.execute:
+    if debug:
+      print "running cmd: " + cmd
+      print "INFO: backing up ENV-level extservices.springconfig and injected.properties to %s/ENV_backup on %s. " % ( ccs_dir_root, ccs_host )
+    run_cmd( cmd )
+  else:
+    print "would have run: " + cmd
+
+
+def doit_for_one_limited_release(release, svn, workdir, rsync,  ssh, sudo,  ccs_host, ccs_dir_root, ccsappname, options):
+  """
+  handling one ccsappname in limited release
+	no need to check latest_ver_in_ccs, just push 
+  """
+
+  limited_ver_in_repo = release[1:]
+  limited_rel_in_repo = '0.0.%s' % limited_ver_in_repo
+
+  p = re.compile(r'^[987]\d{2}')
+  if not p.match(limited_ver_in_repo):
+    print >>sys.stderr, "Release %s does not seem to be a limited release." % release
+    return None
+
+  if options.execute:
+    if not options.noprompt:
+      reply = raw_input("I am guessing you are syncing a limited release, and I am assuming you are sure what you are doing. Are you sure? (y/n) ")
+      reply = reply.strip()
+    if options.noprompt or  reply.startswith('y'):
+      pass
+    else:
+      print >>sys.stderr, "I quit because you are not sure what you are doing."
+      sys.exit(1)
+ 
+  list_of_limited_rels = get_list_of_limited_rels_in_app(ssh, ccs_host, ccs_dir_root, ccsappname) 
+
+  if options.debug:
+    print 'list_of_limited_rels: ', list_of_limited_rels
+    print 'limited_ver_in_repo: ', limited_ver_in_repo
+    print 'limited_rel_in_repo: ', limited_rel_in_repo
+
+  if list_of_limited_rels and limited_rel_in_repo in list_of_limited_rels:
+    # if limited_ver_in_repo is on ccs server, go syncing...
+    syncit_from_repo_to_ccs( workdir, rsync,  ccs_host, ccs_dir_root, ccsappname, limited_ver_in_repo, options )
+
+  else:
+    # ... otherwise, create limited release dir first
+    create_limited_release_dir( ssh, ccs_host, ccs_dir_root, ccsappname, sudo, limited_ver_in_repo, options )
+    syncit_from_repo_to_ccs( workdir, rsync,  ccs_host, ccs_dir_root, ccsappname, limited_ver_in_repo, options )
+
+
+def doit_for_one_force(release, svn, workdir, rsync,  ssh, sudo,  ccs_host, ccs_dir_root, ccsappname, options):
+  latest_ver_in_repo = release[1:]
+  syncit_from_repo_to_ccs( workdir, rsync,  ccs_host, ccs_dir_root, ccsappname, latest_ver_in_repo, options )
+
+
+def doit_for_toplevel(release, workdir, rsync, ccs_host, ccs_dir_root, options):
+  """ prompt for syncing toplevel configs and injected """  
+  ccs_dir_root_suffix = ccs_dir_root.split('/')[-1]  
+  rsync_from = workdir +'/'+ ccs_dir_root_suffix + '/'
+
+  if os.path.isdir( workdir + '/' + ccs_dir_root_suffix ):
+    rsync_to = 'cm@' + ccs_host + ':' + ccs_dir_root  
+    cmd = "%s %s %s " % (rsync, rsync_from, rsync_to)
+
+    if options.execute:
+      if options.verbose:
+        print "INFO: syncing toplevel configs and injected properties, from %s to %s" % (rsync_from, rsync_to)
+      # do prompt
+      if not options.noprompt:
+        reply = raw_input("Are you sure you want the top level extservices and injected properties in SVN repo to be synced to CCS? (y/n) ")
+        reply = reply.strip()
+      if options.noprompt or  reply.startswith('y'):
+        run_cmd(cmd)
+      else:
+        print "OK, I am not syncing top level configs per your instruction." 
+    else:
+      print "INFO: would have run: " + cmd
+  else:
+    print >>sys.stderr, "WARNING: not found in repo: %s " %  ( rsync_from )
+
+
+def doit_for_one(release, svn, workdir, rsync,  ssh, sudo,  ccs_host, ccs_dir_root, ccsappname, options):
+  """
+  handling one ccsappname 
+  """
+
+#  latest_ver_in_repo = get_latest_ver_in_repo(workdir, ccsappname, options)
+  # using LATEST is fragile: what happens if it's somehow not updated...
+  # better assume user always knows which release to work on.... 
+  latest_ver_in_repo = release[1:]
+
+  latest_ver_in_ccs = get_latest_ver_in_ccs( workdir, rsync, ssh, sudo,  ccs_host, ccs_dir_root, ccsappname, options)
+
+  if latest_ver_in_ccs is None:
+    return
+ 
+  if int(latest_ver_in_ccs) == int(latest_ver_in_repo):
+
+    syncit_from_repo_to_ccs( workdir, rsync,  ccs_host, ccs_dir_root, ccsappname, latest_ver_in_ccs, options )
+
+  elif int(latest_ver_in_ccs) < int(latest_ver_in_repo):
+
+    print "INFO: latest_ver_in_ccs:  %s < latest_ver_in_repo: %s ... creating new version dir %s from %s for %s in %s CCS." % ( 
+			latest_ver_in_ccs, latest_ver_in_repo,  '0.0.'+latest_ver_in_repo, '0.0.'+latest_ver_in_ccs, ccsappname, options.envname  )
+    make_new_rel_dir( ssh, ccs_host, ccs_dir_root, ccsappname, sudo, latest_ver_in_repo, latest_ver_in_ccs,  options )
+    syncit_from_repo_to_ccs( workdir, rsync,  ccs_host, ccs_dir_root, ccsappname, latest_ver_in_repo, options )
+
+  else:
+    print >>sys.stderr,  "For %s in %s, latest version in CCS:  %s is greater than latest version in repo:  %s. Something fishy here... no action done. "  % ( 
+			ccsappname, options.envname, latest_ver_in_ccs, latest_ver_in_repo )
+
+
+def get_ccsappname_list( workdir,  release, options ):
+  """
+  get all apps with the ver # specified in the release in LATEST file in the workdir
+  """
+  apps = []
+  for dirname, dirnames, filenames in os.walk( workdir ):
+    for filename in filenames:
+      if filename == 'LATEST':
+        if not dirname == '.' and not  dirname == workdir :
+          vernum = open( os.path.join(dirname, filename), "r" ).read().rstrip()
+          # strip out R in say  R1040
+          if vernum == release[1:]:  
+            #print "%s : %s" % (dirname, filename)
+            apps.append(dirname.split('/')[-1])   # only need the dir name
+  return apps
+
+
+def sync_from_master_to_slaves( ssh, workdir, ccs_host, ccs_dir_root, options ):
+  """ run rsync_master_repo.sh on ccs_host to sync from master to slaves """
+
+  the_script = '/export/content/bin/rsync_master_repo.sh -f'
+
+#  if options.ccsappname:
+#    the_script += ' %s ' %  options.ccsappname
+#
+#    # get a list of containernames as well:  containernames_string
+#    # cf: doit_for_one_servername
+#    ccs_dir_root_suffix = ccs_dir_root.split('/')[-1]
+#    repo_container_dir = os.path.join(workdir, options.ccsappname, ccs_dir_root_suffix, 'container')
+#    containernames = get_containernames(repo_container_dir, options.ccsappname)
+#    containernames_string = ' '.join(containernames)
+#
+#    if containernames_string:
+#      the_script += ' %s ' % containernames_string
+
+  cmd = "%s  %s ' %s ' " % (ssh, ccs_host, the_script)
+  if options.execute:
+    if options.verbose:
+      print "INFO: running rsync_master_repo.sh on master host to sync from master to slaves"
+    run_cmd( cmd )
+  else:
+    print "INFO: would have run: " + cmd
+
+
+def get_parser():
+  usage = "usage: %prog [options] "
+  parser = OptionParser(usage)
+  parser.add_option("-e", "--env", dest="envname",
+			help="[required] Environment name provided. supported ones: ei1, ei3,  stg, beta, ech3, ela4")
+  parser.add_option("-r", "--release", dest="release",
+			help="[required] Release#,  e.g., R1040, NOTE capital R! ")
+  parser.add_option("-f", "--file", dest="filename",
+                        help="read data from FILENAME which contains on each line a ccs app name (aka, directory name in CCS), e.g., oms, webtrack, peopleSearchService etc.")
+  parser.add_option("-c", "--ccsapp", dest="ccsappname",
+			help="The directory name in CCS  provided, e.g., should use auth rather than auth-server")
+  parser.add_option( "-t", "--toplevel",  action="store_true",
+            help="Use it to sync toplevel configs only")
+  # deliberately force user to type more if they want to turn off toplevel sync
+  parser.add_option(   "--notoplevel",  action="store_true",
+            help="Use it to NOT sync toplevel configs (read: no toplevel)")
+  parser.add_option(   "--noprompt",  action="store_true",
+            help="Use it to NOT show prompt (read: no prompt)")
+  parser.add_option( "-l", "--limited",  action="store_true",
+            help="Use it to sync limited releases, e.g., [987]* releases."  )
+  parser.add_option( "-m", "--monolithic",  action="store_true",
+            help="Use it to sync monolithic releases, e.g.,  R1118 if current daily is R1114."  )
+  parser.add_option( "-C", "--cleanup",  action="store_true",
+            help="Use it to cleanup workdir" )
+  parser.add_option( "-E", "--execute",  action="store_true",
+			help="Use it when you are ready to __execute__ it")
+  parser.add_option( "--force", action="store_true", dest="force",
+            help="Force it if you want to do upon an older release."  )
+  parser.add_option("-v", "--verbose", default=True, 
+                      action="store_true", dest="verbose",
+			help="In verbose mode")
+  parser.add_option("-d", "--debug",
+                      action="store_true", dest="debug",
+			help="In debug mode")
+
+  return parser
+
+
+def cleanup_workdir( workdir, options ):
+  shutil.rmtree( workdir )
+  dot_dir = os.path.dirname(workdir)
+  if options.debug:
+    print "dot_dir : %s " % dot_dir
+  shutil.rmtree( dot_dir )
+
+
+def get_cfg2_comps( workdir,  ccsappname_list, options ):
+  cfg2_list = []
+  cfg2_file = "%s/cfg2" % workdir
+  if os.path.isfile( cfg2_file ):
+    fh = open( cfg2_file, "r" )
+    for line in fh:
+      if line.strip():
+        cfg2_list.append( line.strip() )
+  return cfg2_list
+
+
+def get_daily_release():
+  fh = urllib.urlopen(url_to_current_daily_release_txt)
+  daily = fh.read().strip()
+  return daily
+
+#  daily_file = os.path.join(os.environ['ITOPS_HOME'], 'ccs', 'bin', 'CURRENT_DAILY_RELEASE.txt')
+#  with open(daily_file, 'r') as fh:
+#    daily = fh.readline().strip()
+#  return daily
+    
+
+def show_merge_message(daily_release, options):
+  current_release = options.release
+  # if current_release !< daily_release
+  #   no need to show 
+  if current_release <  daily_release:
+    daily_branch = "CONFIG_%s" % daily_release
+    current_branch = "CONFIG_%s" % current_release
+    if Env(options.envname).is_prod_env():
+      daily_branch = "PROD_%s" % daily_release
+      current_branch = "PROD_%s" % current_release
+       
+    msg = """
+    =====================================================================    
+    
+    Looks like you were working on branch %s, but the current daily
+    branch is %s
+    
+    You should consider merge your work from %s to %s
+    
+    Here is how:
+      1. create a workspace from %s/%s
+      2. cd to the workspace
+      3. run: svn merge %s/%s --dry-run
+      4. if the dry-run looks good, run the merge command without '--dry-run' 
+      5. check in your changes by running: svn ci -m "merged from %s" .
+       
+    =====================================================================   
+    """
+  
+    print msg % (current_branch, daily_branch, current_branch, daily_branch,
+                 url_root, daily_branch,
+                 url_root, current_branch,
+                 current_branch,
+                )
+  
+
+def warning(msg, quit=False):
+  print >>sys.stderr, "WARNING: " + msg
+  if quit:
+    return None
+
+
+def get_containernames(path, ccsappname):
+  # assumption: one name in dir
+  # what happens if there are more names? error?
+  # is IS possible to have more than 1 containers
+  try:
+    names = os.listdir(path)
+  except OSError, e:
+    warning("%s" % e)
+    return None
+  if not names:
+    warning("Container info not in repo yet for %s" % ccsappname, quit=True)
+  else:
+    return names
+
+
+def doit_for_one_servername(workdir, rsync, ccs_host, ccs_dir_root, ccsappname, options):
+  # fetch from ccs, the repo counterpart already done in create_workdir
+  workdir_root = make_workdir_root()
+
+  # /export/content/repository/EI1  -> EI1
+  ccs_dir_root_suffix = ccs_dir_root.split('/')[-1]
+
+  repo_container_dir = os.path.join(workdir, ccsappname, ccs_dir_root_suffix, 'container')
+
+  if not os.path.isdir(repo_container_dir):
+    warning("No container path found in repo.") 
+
+  # get container name: container/<container name>
+  #  e.g., conatiner/auth-server
+  # it IS possible to have more than 1 containers for a ccsappname, e.g.,
+  #  leocs has cs-tomcat, and 4cs-tomcat
+  containernames = get_containernames(repo_container_dir, ccsappname)
+
+  if not containernames:
+    return None
+  
+  for containername in containernames:
+    rsync_from = "%s/%s/%s/%s/%s/ " % (workdir, ccsappname, ccs_dir_root_suffix, 'container', containername)
+    rsync_to = "cm@%s:%s/%s " % (ccs_host, ccs_dir_root, containername)
+  #  rsync += " --exclude  '0.*' "
+  
+    cmd = "%s %s %s 2>/dev/null" % (rsync, rsync_from, rsync_to)
+  
+    if options.verbose:
+      print "INFO: sync-ing containers from %s to %s" %  (rsync_from, rsync_to)
+    if options.debug:
+      print "INFO: running cmd: %s" % (cmd)
+  
+    run_cmd(cmd)
+
+
+
+
+########## main()
+def main():
+  parser = get_parser()
+  options, args = parser.parse_args()
+
+  if options.filename and options.ccsappname:
+    print >>sys.stderr, "ERROR: -c and -f are mutually exclusive."
+    parser.print_help()
+    sys.exit(1)
+
+  if options.toplevel and options.ccsappname:
+    print >>sys.stderr, "ERROR: -t and -c are mutually exclusive."
+    parser.print_help()
+    sys.exit(1)
+
+  if options.toplevel and options.notoplevel:
+    print >>sys.stderr, "ERROR: -t and --notoplevel are mutually exclusive."
+    parser.print_help()
+    sys.exit(1)
+
+  if options.notoplevel:
+    options.toplevel = False
+
+  # required:  options.envname
+  if options.envname == None:
+    print "ERROR: I need an envname, e.g., beta"
+    parser.print_help()
+    sys.exit(1)
+
+  # required:  options.release
+  if options.release == None:
+    print "ERROR: I need a release, e.g., R1040"   
+    parser.print_help()
+    sys.exit(1)
+
+  env = Env(options.envname) 
+  env.check_envname_given()
+  ccs_host = env.get_ccs_host()
+  ccs_dir_root =  env.get_ccs_dir_root()
+  if ccs_host == None or ccs_dir_root == None:
+    print "ERROR: I did not find ccs_host or ccs_dir_root."
+    sys.exit(1)
+
+  if env.is_prod_env():
+    print >>sys.stderr, "-" * 50
+    print >>sys.stderr, "WARNING: You are doing PROD ENV... BE VERY CAREFUL!"
+    print >>sys.stderr, "-" * 50
+
+  global debug
+  debug = options.debug
+
+  release = options.release
+
+  if options.debug:
+#    print "ccsappname: " + ccsappname
+    print "ccs_host: " +  ccs_host
+    print "ccs_dir_root: " +  ccs_dir_root 
+    print "relase: " +   release
+
+  ########## now that the prep is done, let's do the real work
+  if options.execute:
+    warmup_sudo(  ssh,  ccs_host, sudo )
+    # better run it ealier to make sure cm has the write permission
+    run_ch_cmds(  ssh, ccs_host, ccs_dir_root, sudo )
+
+  daily_release = get_daily_release()
+  if options.debug:
+    print "current_daily_release: " + daily_release
+
+  # use daily release by default, but change as needed in function for
+  # limited and monolithic releases
+  workdir = create_workdir( daily_release, svn, ccs_dir_root,  options ) 
+
+  if not options.toplevel: 
+    ccsappname_list = []
+    if options.filename:
+      try:
+        fh = open(options.filename, "r")
+        for line in fh:
+          if line.strip():
+            ccsappname_list.append( line.strip() )
+      except IOError:
+        print >>sys.stderr, "ERROR: File %s does not exist!" % options.filename
+        sys.exit(1)
+    elif options.ccsappname:
+      ccsappname_list.append( options.ccsappname )
+    else:
+      # if no -c and no -f provided, we'll look for LATEST file in workdir for ccsappname_list
+      if options.verbose:
+        print "INFO: using LATEST file on the branch to determine ccsappname_list."
+      try:
+        fh = open(workdir + '/LATEST', "r")
+        for line in fh:
+          if line.strip():
+            ccsappname_list.append( line.strip() )
+      except IOError:
+        print >>sys.stderr, "ERROR: File %s does not exist!" %  workdir+'/LATEST'
+        sys.exit(1)
+  
+    if not ccsappname_list:
+      print >>sys.stderr, "ERROR: ccsappname_list is empty! nothing to sync!"
+      sys.exit(1)
+  
+    ccsappname_list_cfg2  = get_cfg2_comps( workdir,  ccsappname_list, options )
+  
+
+  # prompt for syncing  top level extservices and injected
+  # prompt inside function, might be better to prompt here?
+  # only do toplevel configs on daily release branch
+  #
+  # feature creep: need to turn off toplevel sync by user
+  #
+  daily_release = get_daily_release()
+  if release == daily_release and not options.notoplevel:
+    doit_for_toplevel(release, workdir, rsync,  ccs_host, ccs_dir_root,  options)
+
+  if not options.toplevel:
+    for ccsappname in ccsappname_list:
+      if options.verbose:
+        print '-' * 80
+        print "INFO: dealing with %s... " % ccsappname
+      # no need to do cfg2 comps
+      if  ccsappname_list_cfg2 and ccsappname  in ccsappname_list_cfg2:
+        print >>sys.stderr, "WARNING: %s is in cfg2, no need to sync it to CCS server." % ccsappname
+        continue
+      else:
+        if options.limited:
+          doit_for_one_limited_release(release, svn, workdir, rsync,  ssh, sudo,  ccs_host, ccs_dir_root, ccsappname, options)
+        else:
+          if options.force:
+            doit_for_one_force(release, svn, workdir, rsync,  ssh, sudo,  ccs_host, ccs_dir_root, ccsappname, options)
+          else:
+            doit_for_one(release, svn, workdir, rsync,  ssh, sudo,  ccs_host, ccs_dir_root, ccsappname, options)
+            doit_for_one_servername(workdir, rsync, ccs_host, ccs_dir_root, ccsappname, options)
+  
+  if env.is_prod_env():
+    # for prod env, we need to run rsync_master_repo.sh to sync from master to slaves
+    sync_from_master_to_slaves( ssh, workdir, ccs_host, ccs_dir_root, options )
+
+  if options.execute:
+    show_merge_message(daily_release, options)
+
+  if options.cleanup:
+    cleanup_workdir( workdir, options )
+
+  if options.execute:
+    atexit.register(run_ch_cmds,  ssh, ccs_host, ccs_dir_root, sudo )
+
+  # we are done here
+  sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
+

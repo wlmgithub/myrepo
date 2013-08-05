@@ -1,0 +1,9 @@
+<?= $this->partial('header.phtml', array(
+    'from' => 'index','urlHome' => $this->urlHome)); ?>
+
+<?php foreach ($this->componenents as $component) { ?>
+	<?= $component ?> &nbsp; <input type="button" value="<?= $this->task ?>" />
+<?php } ?>
+
+<?= $this->partial('footer.phtml', array(
+    'from' => 'index','urlHome' => $this->urlHome)); ?>

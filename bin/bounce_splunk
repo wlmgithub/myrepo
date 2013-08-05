@@ -1,0 +1,165 @@
+#!/bin/bash
+# 
+# lwang: splunk needs to be bounced every time there is a new push :(
+#
+
+# ugly globals
+ssh=/bin/ssh
+scp=/bin/scp
+sudo=/usr/local/bin/sudo
+svcadm=/usr/sbin/svcadm
+
+if [  "x$ITOPS_HOME" = "x" ]; then
+  echo "You need to have environment variable ITOPS_HOME set: e.g., export ITOPS_HOME=~/code/itops"
+  exit
+fi
+
+function usage() {
+  echo " "
+  echo "usage: $0 [-h] [-n] [-s] [-m <machines>] [-e <environment>] [ <pool> ]"
+  echo " "
+  echo "where <pool> includes:"
+  echo "  all "
+  echo "  <specific pool name> "
+  echo " "
+  echo "If \"all\" is provided, splunk will be bounced on all the hosts in all the pools"
+  echo " "
+  echo "-m is used to specify certain machines to bounce splunk on "
+  echo "-n only echoes cmd without actually running it"
+  echo "-s do it the 'Sergiy' way (faster, but not quite reliable) "
+  echo " "
+  echo "e.g., $0 -e ech3 <pool>"
+  echo "e.g., $0 -m \"m1 m2 m3 ...\" "
+  echo " "
+}
+
+
+if [ $# = 0 ]; then
+  usage
+  exit 0
+fi
+
+ECHON=0
+SERGIYWAY=0
+while getopts ":hnse:m:" opt; do
+  case $opt in
+    h )
+      usage
+      exit 0
+      ;;
+    e )
+      MYENV="$OPTARG"
+      if [ "$ECHON" -ne 1 ]; then
+        echo
+        echo "Pools in environment: $MYENV: "
+        POOLS=`${ITOPS_HOME}/bin/cmtool.pl -a get_pools -env ${MYENV}`
+        echo
+        echo $POOLS
+        echo
+        echo
+      fi
+      ;;
+    m )
+      MACHINES="$OPTARG"
+      ;;
+    n )
+      ECHON=1
+      ;;
+    s )
+      SERGIYWAY=1
+      ;;
+    \? )
+      echo "unknown option: $opt"
+      exit 1
+      ;;
+  esac
+done
+shift $(($OPTIND -1))
+
+echon() {
+  echo "$*" | tr -d "\n"
+}
+
+function bounce_do_it() {
+  h=$1
+  #
+  # create a short-term cache
+  #
+  echo $pwd | $ssh $h  $sudo ls /tmp >/dev/null  2>&1
+  #
+  # then do it
+  #
+  if [ "$ECHON" = 1 ]; then
+#    echo $ssh $h " $sudo  $svcadm restart splunk "
+    if [ "$SERGIYWAY" == 1 ]; then
+      echo $ssh $h " cd /tmp && $sudo -u splunk ./splunk_update.sh"
+    else
+      echo $ssh $h "$sudo /export/apps/splunk/i002/splunk/bin/splunk restart"
+    fi
+  else
+#    $ssh $h " $sudo  $svcadm restart splunk "
+    if [ "$SERGIYWAY" == 1 ]; then
+      $ssh $h " cd /tmp && $sudo -u splunk ./splunk_update.sh"
+    else
+#      $ssh $h " cd /tmp && $sudo /etc/init.d/splunk restart "
+      $ssh $h "$sudo /export/apps/splunk/i002/splunk/bin/splunk restart"
+    fi
+  fi
+
+}
+
+function bounce_it() {
+    p=$1
+    for h in `${ITOPS_HOME}/bin//cmtool.pl -a get_pool_hosts -pool $p -env ${MYENV}`; do
+    echo
+      echo === Bouncing splunk on $h
+#      $scp $ITOPS_HOME/bin/splunk_update.sh cm@$h:/tmp
+      bounce_do_it $h
+    done
+    echo
+}
+
+function bounce_all() {
+  for i in $POOLS; do
+    bounce_it $i
+  done
+
+  stty echo
+  exit 
+}
+
+
+#
+# capture the pwd
+#
+echo "Enter password: "
+stty -echo
+read pwd
+
+if [ "$MACHINES" != "" ]; then
+  for h in  $MACHINES; do 
+    echo
+    echo === Bouncing splunk on $h
+    $scp $ITOPS_HOME/bin/splunk_update.sh cm@$h:/tmp
+    bounce_do_it $h
+  done 
+  echo
+
+  stty echo
+  exit
+fi
+
+if [ $# != 0 ]; then
+
+  for i in "$@"; do
+    if [ $i != 'all' ]; then
+      bounce_it $i
+    else
+      bounce_all
+    fi
+  done
+
+  stty echo
+  exit
+fi
+

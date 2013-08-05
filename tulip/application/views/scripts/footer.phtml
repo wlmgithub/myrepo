@@ -1,0 +1,88 @@
+</div>
+<div id="footer"></div>
+	<div id="footerbox">
+<!--
+	<div class="footer"><a style="color:#27537A;" href="mailto:mvenkata@foobar.com">Contact Us</a></div></div>
+-->
+	<div class="footer">
+	<a style="color:#27537A;" href="mailto:siteops@foobar.com">Contact Us</a> | 
+	<a style="color:#27537A;" href="https://iwww.corp.foobar.com/wiki/cf/pages/viewpage.action?pageId=3348228" target="_blank" >Release Home Page</a>  |
+	<a style="color:#27537A;" href="http://spreadsheets.google.com/ccc?key=tgjrN08PPb0Suu6XEr_235w" target="_blank"> Time Spent on Releases </a> 
+
+	<a style="color:#27537A; float:right" href="<?= $this->urlHome ?>/logout">Log Out</a>
+
+	</div> 
+
+	</div>
+	
+<script type='text/javascript' src="<?= $this->urlHome ?>/js/jquery.autocomplete.js"></script>
+	<script type='text/javascript'>
+		function findValue(li) {
+			if( li == null ) return alert("No match!");
+		
+			// if coming from an AJAX call, let's use the CityId as the value
+			if( !!li.extra ) var sValue = li.extra[0];
+		
+			// otherwise, let's just display the value in the text box
+			else var sValue = li.selectValue;
+		
+			//alert("The value you selected was: " + sValue);
+		}
+		function selectItem(li) {
+			findValue(li);
+		}
+		
+		function formatItem(row) {
+			return row[0];
+		}
+		$(document).ready(function() {
+			// for autocomplete
+			$("#keyword").autocomplete(
+			url_home + "/index/autocomplete",
+			{
+				delay:10,
+				minChars:1,
+				matchSubset:1,
+				matchContains:1,
+				cacheLength:10,
+				onItemSelect:selectItem,
+				onFindValue:findValue,
+				formatItem:formatItem,
+				autoFill:true
+			}
+			);
+		
+		    });
+	</script>
+	
+<?php if ($this->from == "index" ) { 	?>
+		<script type="text/javascript" src="<?= $this->urlHome ?>/js/jquery.tablesorter.min.js"></script> 
+		<script type="text/javascript" src="<?= $this->urlHome ?>/js/jquery.tablesorter.pager.js"></script>
+		<script type="text/javascript">
+		
+		$(document).ready(function() {
+			
+			$("#myTable")
+			.tablesorter({headers: {0: {sorter: false}}})
+			.tablesorterPager({container: $("#pager")});
+			
+			$("#myTable > tr").hover(
+		      function () {
+		        $(this).addClass('hover');
+		      }, 
+		      function () {
+		        $(this).removeClass('hover');
+		      }
+		    );
+			
+			
+		 });
+		</script>
+	<?php 	} ?>
+<?php if ($this->from == "rollout" ) { 	?>
+	<script type="text/javascript" src="<?= $this->urlHome ?>/js/jquery.validate.pack.js"></script>
+	<script type="text/javascript" src="<?= $this->urlHome ?>/js/home/movelist.js"></script>
+<?php 	} ?>
+</body>
+</html>
+ 

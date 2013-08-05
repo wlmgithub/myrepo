@@ -1,0 +1,28 @@
+<?= $this->partial('header.phtml', array(
+    'from' => 'index','urlHome' => $this->urlHome)); ?>
+<div class="clearfix" style="padding:5px;width:100%;">
+<?php if ($this->value == 1){ ?>
+	<div style="float: left;">
+		<a href="<?= $this->urlHome ?>/index/new" >[Create New Release Vehicle ID]</a>
+	</div>
+<?php } ?>
+	<div id="pager"  style="float:right;">
+		<form class="search" >
+			<img src="<?= $this->urlHome ?>/images/icons/first.png" class="first"/>
+			<img src="<?= $this->urlHome ?>/images/icons/prev.png" class="prev"/>
+			<input type="text" class="pagedisplay"/>
+			<img src="<?= $this->urlHome ?>/images/icons/next.png" class="next"/>
+			<img src="<?= $this->urlHome ?>/images/icons/last.png" class="last"/>
+			<select class="pagesize" id="pagesize">
+				<option selected="selected"  value="10">10</option>
+				<option value="20">20</option>
+				<option value="30">30</option>
+				<option  value="40">40</option>
+			</select>
+		</form>
+	</div>	
+</div>	
+	<?= $this->rolloutList() ?>
+
+<?= $this->partial('footer.phtml', array(
+    'from' => 'index','urlHome' => $this->urlHome)); ?>

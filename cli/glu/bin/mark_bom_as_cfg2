@@ -1,0 +1,227 @@
+#!/export/apps/splunk/i001/splunk/bin/python
+#
+# lwang: This script is to automate adding entries to RELEASE.BOM for the purpose of marking cfg2.0
+#
+#	./scr -h
+#
+# Assumption:
+#============
+#  * Need to have RELREPO env setup
+#  * 
+#
+from __future__ import with_statement
+import sys
+import os
+import re
+import subprocess
+from optparse import OptionParser
+from socket import gethostname
+
+DIFF = '/bin/diff'
+SVN = '/usr/local/bin/svn'
+
+####################################
+def run_cmd(cmd):
+  try:
+    retcode = subprocess.call("%s" % cmd, shell=True)
+    if retcode < 0:
+      print >>sys.stderr, "Child was terminated by signal ", -retcode
+  except OSError,  e:
+    print >>sys.stderr, "Execution failed: ", e
+
+
+def update_relrepo(relrepo_home):
+  cmd = "%s update %s" % (SVN, relrepo_home)
+  run_cmd(cmd)
+
+
+def checkin_changes_for(file, cfile, options):
+  # cfile: the changed file
+  # cfile -> file
+  os.rename(cfile, file)
+  
+  # checkin now
+  cmd = "%s ci -m 'checkedin by mark_as_cfg2 script' %s" % (SVN, file)
+  if options.verbose:
+    print "INFO: checking in changes..."
+  if options.debug:
+    print "running cmd: ", cmd
+  run_cmd(cmd)
+
+
+def normalize_names(l):
+  # l : list of war names given
+  names = []
+  for n in l:
+    if '-war' not in n:
+      n = '%s-war' % n
+    names.append(n)
+   
+  return names
+
+
+def get_release_dirs(d, r):
+  # d : relrepo/releases dir
+  # r : release # given
+  p = re.compile(r'^R11|R104[246]')
+  mydirs = [ x for x in os.listdir(d) if p.match(x) and x.split('/')[-1] < r]
+  
+  return tuple(reversed(sorted(mydirs)))
+  
+
+def check_entry_in(file, dir, war, options):
+  if options.debug:
+    print 'looking in %s of %s for %s ' % (file, dir, war) 
+
+  ivy_found = None
+  with open(file) as fh:
+    for l in fh:
+      m = re.match(r'(.*)=(.*)', l.strip())
+      if m and m.group(1) == war:
+        ivy_found  = m.group(2)
+
+  return ivy_found
+
+
+def change_bom_file(release_bom_file, successful_wars, ivy_of_war, options):
+  for war in successful_wars:
+    with open(release_bom_file, 'a') as fh:
+      fh.write('%s=%s\n' % (war, ivy_of_war[war]))    
+
+
+def diff_bom_file(file, options):
+  # do svn diff before trying to checkin
+  cmd = '%s diff %s' % (SVN, file)
+  run_cmd(cmd)
+
+
+def checkin_bom_file(file, options):
+  # prompt before trying to check in
+  reply = raw_input("Do you want to check in the above changes? (y/n)")
+  if reply.startswith('y'):
+    cmd = '%s ci -m "checkedin by mark_bom_as_cfg2 script" %s' % ( SVN, file )
+    run_cmd(cmd)
+  else:
+    print >>sys.stderr, "WARNING: above changes NOT checked in!"
+
+
+
+########## main()
+def main():
+  usage = "usage: %prog [options] "
+  parser = OptionParser(usage)
+  parser.add_option("-r", "--release", dest="release",
+			help="[required] Release name provided, e.g., R1106 ")
+  parser.add_option("-w", "--wars", dest="wars",
+			help="[required] WAR names separated by comma, e.g., security-auth,project-ds. NOTE: -war will be automatically appended to the names.")
+  parser.add_option("-b", "--rollback", action="store_true", 
+			help="Rollback config2.0 mark for the apps given.")
+  parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
+			help="In verbose mode")
+  parser.add_option("-d", "--debug", action="store_true", dest="debug",
+			help="In debug mode")
+  parser.add_option( "-E", "--execute",  action="store_true",
+			help="Use it when you are ready to __execute__ it")
+
+  (options, args) = parser.parse_args()
+
+  # should only be run on rotozip
+  hostname = gethostname()
+  if hostname != 'rotozip.corp':
+    print >>sys.stderr, "ERROR: run the script on rotozip."
+    sys.exit(1)
+
+  # required:  options.release
+  if options.release == None:
+    print "ERROR: I need a release name , e.g., R1106"
+    parser.print_help()
+    sys.exit(1)
+
+  # required: options.wars
+  if options.wars == None:
+    print "ERROR: I need a war or a list of wars separated by comma"
+    parser.print_help()
+    sys.exit(1)
+
+  list_of_wars = options.wars.strip().split(',')
+  
+  # normalize the war names: 
+  #  xxx -> xxx-war
+  #  xxx-war -> xxx-war
+  list_of_wars = normalize_names(list_of_wars)
+
+  relrepo_home = os.environ['RELREPO']
+
+  # always update before starting to work
+  update_relrepo(relrepo_home)
+
+  release_bom_file = os.path.join(relrepo_home, 'releases', options.release, 'RELEASE.BOM')
+
+  # find meaningful Rxxx dirs to use for backtracing missing entries
+  # my_release_dirs : tuple
+  my_release_dirs = get_release_dirs(os.path.join(relrepo_home, 'releases'), options.release)
+
+  if options.debug:
+    print >>sys.stderr, 'relrepo_home = ', relrepo_home
+    print >>sys.stderr, 'release_bom_file = ', release_bom_file 
+    print >>sys.stderr, 'list_of_wars = ', list_of_wars
+    print >>sys.stderr, 'my_release_dirs = ', my_release_dirs
+
+  # dictionary of those wars not found in the given release bom file
+  ivy_of_war = {}
+
+  for war in list_of_wars:
+    ivy_found = check_entry_in(release_bom_file, options.release, war, options)
+    if ivy_found:
+      # no need to check further
+      print 'GOOD: found %s in %s' % (war, release_bom_file)
+#      ivy_of_war[war] = ivy_found
+
+      # rollback only if we found entry in the specified bom file
+      if options.rollback:
+        changed_file = '%s.changed' % release_bom_file
+        with open(changed_file, 'w') as fout:
+          with open(release_bom_file, 'r') as fin:
+            for l in fin:
+              if not  re.match(r'^%s=' % war, l.strip()):
+                fout.write(l)
+        os.rename(changed_file, release_bom_file)
+#      pass
+    else:
+      # for each dir in my_release_dirs, check
+      for d in my_release_dirs:
+        file = os.path.join(relrepo_home, 'releases', d, 'RELEASE.BOM')
+        ivy_found = check_entry_in(file, d, war, options)
+        if ivy_found:
+          print 'found %s in %s' % (war, file)
+          ivy_of_war[war] = ivy_found
+          break
+        # else, continue  
+        else:
+          ivy_of_war[war] = None
+
+  unsuccessful_wars = [ w for w in ivy_of_war if not ivy_of_war[w]  ]
+  successful_wars =  [ w for w in ivy_of_war if ivy_of_war[w]  ]
+
+  if options.debug:
+    print 'unsuccessful wars: ', unsuccessful_wars
+    print 'successful wars: ', successful_wars
+    print
+    print ivy_of_war
+
+  #
+  change_bom_file(release_bom_file, successful_wars, ivy_of_war, options)
+
+  # 
+  diff_bom_file(release_bom_file, options)
+
+  # 
+  if options.execute:
+    checkin_bom_file(release_bom_file, options)
+
+  sys.exit()
+
+
+if __name__ == "__main__":
+    main()
+

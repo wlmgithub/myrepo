@@ -1,0 +1,128 @@
+#!/usr/bin/env python2.6
+import os; activate_this=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'activate_this.py'); execfile(activate_this, dict(__file__=activate_this)); del os, activate_this
+
+"""
+  Print out an owner, their department & manager for a given container or WAR.
+
+  This program may not work for older wars / those that haven't been deployed recently.
+"""
+
+import sys
+import urlparse
+
+import restkit.errors
+
+import foobar.cli
+import foobar.person
+import foobar.trotsky.nkvd
+import foobar.tools.fabric
+import foobar.utils.http
+import foobar.utils.repoclient
+
+SCMHOST = 'http://svn.corp.foobar.com'
+
+# Arbitrary branch to look in if the requested container is old enough such
+# that it doesn't have SCM data in META-INF/MANIFEST.MF
+FALLBACK_BRANCH = 'BR_REL_1126'
+FALLBACK_REPO   = '/netrepo'
+
+@foobar.cli.entrypoint
+def main(cli):
+
+  cli.set_option('-f', '--fabric', required=False, help="Fabric to use. [default: %(default)s]", default="STG-BETA")
+
+  group = cli.argparser.add_mutually_exclusive_group(required=True)
+  group.add_argument('-c', '--container', help="Container to lookup owner information for.")
+  group.add_argument('-s', '--service', help="Service to lookup owner information for.")
+  group.add_argument('-w', '--war', help="WAR name to look up owner information for.")
+
+  with cli.run():
+
+    fabric   = foobar.tools.fabric.Fabric(cli.args.fabric)
+    services = []
+
+    # Container first.
+    if cli.args.container:
+      cli.log.info("Searching for container: %s", cli.args.container)
+
+      container = fabric.container_by_name(cli.args.container)
+
+      if container is None:
+        cli.log.warn("Couldn't find any container matching: %s!", cli.args.container)
+        sys.exit()
+
+      services = container.services
+
+    else:
+      # Otherwise try and find a matching WAR by either warname or service name.
+      for product in fabric.products:
+        for service in product.services:
+
+          if cli.args.service:
+            if service.name and service.name == cli.args.service:
+              services = [next(iter(service.instances))]
+              break
+
+          if cli.args.war:
+            if service.warname and service.warname == cli.args.war:
+              services = [next(iter(service.instances))]
+              break
+
+      if not services:
+        cli.log.warn("Couldn't find any WAR name matching: %s!", cli.args.war or cli.args.service)
+        sys.exit()
+
+    if len(services) > 1:
+      cli.log.info("Finding owner information for %d WARs.", len(services))
+
+    for service in services:
+
+      cli.log.info("Looking for WAR: %s", service.warname)
+
+      warname = service.warname
+      version = service.version
+      warinfo = foobar.utils.repoclient.get_war_manifest_info(warname, version)
+
+      if 'X-Scm-Root' in warinfo:
+        scmroot = urlparse.urlparse(warinfo['X-Scm-Root']).path
+        scmpath = warinfo['X-Scm-Path']
+
+      else:
+        cli.log.warn("  The META-INF/MANIFEST.MF for this warname & version is too old! Trying with a fallback branch.")
+
+        # Fallback to find the owner off a "recent" branch if the deployed
+        # version points us at a branch that doesn't have an owner.txt file.
+        #
+        # Assume netrepo/network for this case.
+        scmroot = FALLBACK_REPO
+        scmpath = '/network/branches/%s' % FALLBACK_BRANCH
+
+      try:
+        submodule      = foobar.trotsky.nkvd.find_module_submodule_by_warname(warname)
+        module_name    = submodule.module_name
+        submodule_name = submodule.submodule_name
+      except AttributeError:
+        log.critical("Couldn't find war: %s - does it exist in the lookup table?", warname)
+        continue
+
+      scmurl  = '%s%s%s/%s/%s/owner.txt' % (SCMHOST, scmroot, scmpath, module_name, submodule_name)
+
+      try:
+        owner  = foobar.utils.http.download(scmurl).read().strip()
+        person = foobar.person.Person(owner)
+
+        if person:
+          print "  Found an owner for WAR: %s" % warname
+          print "  Name: %s (%s)" % (person.fullname, person.email)
+          print "  Department: %s" % person.department
+          print "  Manager: %s (%s)" % (person.manager.fullname, person.manager.email)
+        else:
+          print "  Couldn't find owner: '%s' in LDAP! Is this person still employed by foobar?" % owner
+
+        print
+
+      except restkit.errors.ResourceNotFound as e:
+        cli.log.fatal("  Couldn't download the owner.txt file from SCM, it doesn't exist! Tried: %s", scmurl)
+
+      except StandardError as e:
+        cli.log.fatal("  Couldn't download the owner.txt file from SCM. Tried: %s [%s]", scmurl, e)

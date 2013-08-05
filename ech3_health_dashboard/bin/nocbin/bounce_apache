@@ -1,0 +1,6 @@
+#!/bin/bash
+
+sudo /usr/sbin/apachectl -k stop
+sleep 5
+sudo /usr/sbin/apachectl -k start
+

@@ -1,0 +1,37 @@
+#!/bin/bash
+
+sudo=/usr/local/bin/sudo
+
+env=${1:?"Give me an env, e.g., ech3, beta, stg"}
+
+
+#hosts=` ../../bin/cmtool.pl -a gethosts -env $env`
+hosts=`$ITOPS_HOME/glu/bin/gen_manif_from_glu.rb  --env $env --gethosts | grep -v 'At revision' `
+
+echo $hosts
+
+
+echo "Enter password: "
+stty -echo
+read pwd
+stty echo
+
+echo Checking hosts in $env for non-JDK6 apps - excluding agent ....
+
+for h in $hosts; do 
+#for h in esv4-pxy01.stg ; do 
+#  echo
+#  echo $h
+  echo $pwd | ssh $h  $sudo ls /tmp >/dev/null  2>&1
+  pids=$( ssh $h " ps -aef | grep java | egrep -v \"grep|agent\" | grep -v JDK-1_6_0_16 | awk '{print \$2}' " 2>/dev/null )
+  if [ -n "$pids" ]; then
+    echo
+    echo  $h:
+  fi
+  for p in $pids; do
+#    echo $p
+    ssh $h " $sudo pargs $p  | grep --  '-Dcom.foobar.app.name='  | grep argv  | sed -e 's/.*=//' | grep -v agent | sort -u " 2>/dev/null
+  done
+#  ssh $h ' pids=`ps -aef | grep java | egrep -v "grep|agent" | grep -v JDK-1_6_0_16 | awk "{print \$2}"`; echo $pids ' 2>/dev/null
+done
+

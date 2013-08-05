@@ -1,0 +1,29 @@
+#!/usr/local/bin/expect -f
+#
+# lwang: no one wants to manually type "yes" hundreds of times :)
+#
+# usage: loop over a list of hosts, and run this script for each host
+#
+
+set timeout 8
+
+set host [lindex $argv 0]
+
+set pid [spawn ssh -x $host hostname] 
+
+while {1} {
+  expect "Are you sure you want to continue connecting (yes/no)?" {
+    send -- "yes\r"
+    expect eof
+    break
+  } eof {
+    puts "eof"
+    break
+  } timeout {
+    puts "timedout" 
+    exec kill $pid
+    break 
+  }
+}
+
+exit

@@ -1,0 +1,114 @@
+"""
+Using GLU API to create a list of multi-product components
+"""
+#
+# NOTE: no need to look for Flask install, just remember to run: python setup install_deps under ops-utils 
+#
+from collections import defaultdict
+
+from flask import Flask, request
+app = Flask(__name__)
+
+import foobar.tools.fabric
+
+
+def get_all_services(filtered_fabrics):
+  services_mapping = defaultdict()
+  for fabric in filtered_fabrics:
+    for product in fabric.products:
+      for service in product.services:
+        if service.product.name != 'network':
+          services_mapping.setdefault(service.name, service.product.name)
+
+  return services_mapping
+  
+
+def get_services_for(fabric):
+  services_mapping = defaultdict()
+  for product in fabric.products:
+    for service in product.services:
+      if service.product.name != 'network':
+        services_mapping.setdefault(service.name, service.product.name)
+
+  return services_mapping
+
+
+def gen_html_for(fabric, all_services):
+  services_mapping = get_services_for(fabric)
+  services = services_mapping.keys()
+  html = '<td>'
+  for service in sorted(all_services):
+    if service in sorted(services):
+      html += ' <font color="green"> %s </font> <br />' %  (service)
+    else:
+      html += ' <font color="red">  - </font> <br /> ' 
+
+  html += '</td>'
+
+
+  return html
+
+
+def gen_count_for(fabric):
+  services = get_services_for(fabric)
+  html = '<td>'
+  html += ' %d ' % len(services)
+  html += '</td>'
+
+  return html
+ 
+
+@app.route('/')
+def main():
+
+  html = """
+    <style type="text/css">
+//      table { width: 1400px; margin-bottom: 32px; }
+      table { width: 100%; margin-bottom: 32px; }
+      td { width: 300px; text-align: center }
+    </style>
+  """
+  html += "<h1> The following services are multi-products  (according to GLU API): </h1>"
+  html += '<p /><p />'
+  html += '<p /><p />'
+
+  filtered_fabrics = [fabric for fabric in foobar.tools.fabric.all_fabrics() if fabric.name != 'EI1' and fabric.name != 'DEV'] 
+
+  html += '<table border="1" cellpadding="5" cellspacing="0">'
+
+  html += '<tr>'
+  html += '<th> Fabric  </th>'
+  for fabric in filtered_fabrics:
+      html += '<th> %s </th>' % fabric.name
+  html += '<th> (Product)  </th>'
+  html += '</tr>'
+
+  all_services_mapping = get_all_services(filtered_fabrics)
+  all_services = all_services_mapping.keys()
+
+  html += '<tr>'
+  html += '<th> Services </th>' 
+  for fabric in filtered_fabrics:
+      html += gen_html_for(fabric, all_services)
+
+  html += '<td>'
+  for service in sorted(all_services):
+    html += ' <font color="green"> %s </font> <br />' %  (all_services_mapping[service])
+  html += '</td>'
+
+  html += '</tr>'
+
+  html += '<tr>'
+  html += '<th> # of services </th>'
+  for fabric in filtered_fabrics:
+      html += gen_count_for(fabric)
+  html += '</tr>'
+
+
+  html += '</table>'
+
+  return html
+
+if __name__ == "__main__":
+  app.run(host='0.0.0.0', port=8890, debug=True)
+

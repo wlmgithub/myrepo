@@ -1,0 +1,92 @@
+#!/usr/bin/perl -w
+use strict;
+
+use File::Temp qw/ tempfile /;
+use File::Copy;  # move
+
+
+### globals
+my $OWNER_DIR = "/Library/WebServer/Documents/dashboard/data/owner";
+my $OWNER_FILE = "/Library/WebServer/Documents/dashboard/data/owner/owner_for_noc.txt";
+
+my ( $OWNER_FILE_HANDLE, $OWNER_FILE_TEMP ) = tempfile( DIR => $OWNER_DIR );
+
+my $glulist = "/usr/local/foobar/bin/glulist";
+my $owner_for_war = "/usr/local/foobar/bin/owner-for-war -f prod-ela4 ";
+
+
+print "running owner-for-war to get owner info... it may take about 2 hours...";
+
+my @all_services = get_all_services_in_ela4();
+
+
+chmod 0777, $OWNER_FILE;
+chmod 0777, $OWNER_FILE_TEMP;
+
+### clear the content
+open FH, ">", $OWNER_FILE_TEMP;
+print FH "";
+close FH;
+
+for my $service ( @all_services ) {
+  
+  next if $service =~ /^4cs-tomcat/;
+
+  open my $fh,  ">>",  "$OWNER_FILE_TEMP" or  die "canoot open file $OWNER_FILE_TEMP for writing: $!\n";
+
+  print "dealing with $service ...\n";
+  
+  my $cmd = $owner_for_war . ' -s ' . $service;
+#  my $cmd = $owner_for_war . ' -c ' . $service;
+
+  my @res = `$cmd`  ;
+
+  print $fh "$service|";
+
+  if ( @res ) {
+
+    for ( @res ) {
+      next if /^\s+$/;
+      chomp ;
+      if (/Name: (.*)/) {
+        print $fh "$1|";
+      } 
+
+      if (/Department: (.*)/) {
+        print $fh "$1|";
+      }
+
+      if (/Manager: (.*)/) {
+        print $fh "$1\n";
+      }
+
+    }
+    print $fh "\n";
+
+  }
+  else {
+    print $fh "\n";
+
+  }
+
+  close $fh;
+
+
+}
+
+
+# from File::Copy
+move( "$OWNER_FILE_TEMP", "$OWNER_FILE");
+
+exit;
+
+### subs
+
+sub get_all_services_in_ela4 {
+
+  chomp( my @s = `$glulist  -f prod-ela4` );
+#  chomp( my @s = `$glulist  -f prod-ela4 --container` );
+
+  return @s if wantarray;
+
+}

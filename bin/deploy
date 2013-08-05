@@ -1,0 +1,752 @@
+#!/usr/bin/env groovy
+
+import java.util.concurrent.*
+
+
+// The home directory for the script
+def SCRIPT_HOME = new File('..')
+def TIMEOUT_IN_SECONDS = 900  //15m
+
+
+///////// PARSING COMMAND LINE ARGUMENTS /////////
+def cl = new CliBuilder(usage: 'groovy deploy [-h] -a <appname> -r <range> -o <timeout> [-b][-s][-t {direct|tarball}] -e "extra_args"')
+
+cl.h(longOpt:'help', 'Show usage information and quit')
+cl.a(argName:'appname', longOpt:'app', args:1, required:true, 'Application to deploy, REQUIRED')
+cl.r(argName:'range', longOpt:'range', args:1, required:false, 'Range of machines to deploy to. All if not provided (example of range is \'1..1\', or \'10..23\')')
+cl.m(argName:'machines', longOpt:'machines', args:1, required: false, 'Explicit comma-separated list of machines to deploy to (takes precedence over range)')
+cl.t(argName:'threads', longOpt:'threads', args:1, required:false, 'The number of threads to use for the deployment')
+cl.d(argName:'deploytype', longOpt:'deploytype', args:1, required:false, 'Deploy type: (direct, tarball)')
+cl.b(argName:'nobackup', longOpt:'nobackup', args:0, required:false, 'Set no backup mode')
+cl.s(argName:'nostart', longOpt:'nostart', args:0, required:false, 'Set no start mode')
+cl.e(argName:'extra', longOpt:'extra', args:1, required:false, 'Extra arguments to be passed down to deploy script')
+cl.x(argName:'dry', longOpt:'dry', args:0, required:false, 'If running in dry mode')
+cl.o(argName:'timeout', longOpt:'timeout', args:1, required: false, "The timeout to complete a job (defaults at ${TIMEOUT_IN_SECONDS} sec)")
+def opt = cl.parse(args)
+
+Range range = (0..1000)
+List<String> machinesList
+boolean dry = false
+
+if (!opt)
+{
+  // because the parse failed, the usage will be shown automatically
+  println "\nInvalid command line, exiting..."
+  System.exit(1)
+} else if (opt.h)
+{
+  cl.usage()
+  System.exit(0)
+} else
+{
+  println "application is: ${opt.a}"
+  if (opt.m)
+  {
+    machinesList = opt.m.split(',')
+  }
+  else if (opt.r)
+  {
+    if ( !(opt.r ==~ /(\d+)\.\.(\d+)/) )
+    {
+      println "\nNot a valid range (example of range is '1..1', or '10..23')"
+      cl.usage()
+    }
+    else
+    {
+      range = evaluate("(" + opt.r + ")")
+    }
+  }
+  if (opt.x)
+  {
+    dry = true
+  }
+}
+
+int timeout = opt.o ? Integer.valueOf(opt.o) : TIMEOUT_IN_SECONDS
+String deployType = opt.d ? opt.d : "tarball"
+boolean nobackup = opt.b
+boolean nostart = opt.s
+String extraArgs = opt.e ? opt.e : ""
+String application = opt.a
+int nthreads = opt.t ? Integer.valueOf(opt.t) : 1     // by default we do things sequentially
+///////// END PARSING. From now on there should be no reference to CLI and its args /////////
+
+Environment env = ModelLoader.load(SCRIPT_HOME)
+Map<String, Application> apps = env.apps 
+
+Application target = apps.get(application)
+
+if (!target)
+{
+  println "Cannot find application [${application}]. Check for typos.."
+  System.exit(1)
+}
+
+def machines
+
+if (machinesList)
+{
+  machines = MachineResolver.getExactMachines(target, machinesList)
+}
+else
+{
+  machines = MachineResolver.getMatchingMachines(target, range)
+}
+
+println """   SYSTEM:
+   Environment is       ${env.name}
+   Build Number is      ${env.buildNumber}
+   Content Version is   ${env.contentVersion}
+
+   DEPLOYMENT:
+   Application.... ${application}
+   Threads........ ${nthreads ? nthreads : 'dynamic'}
+   Target Hosts... ${machines*.name.join(' ')}
+   Timeout........ ${timeout} sec
+
+   Options
+     Deploy Type.. ${deployType}
+     NoBackup..... ${nobackup}
+     NoStart...... ${nostart}
+
+   Extra Args..... <${extraArgs}>
+
+"""
+if (dry)  println "   RUNNING IN DRY MODE!!!!"
+println "PRESS <enter> to continue or CTRL+C to exit"
+new InputStreamReader(System.in).readLine()
+
+///////// CACHING THE PASSWORD /////////
+String password = null
+if (!dry)
+{
+  EraserThread er = new EraserThread("Input Password:\n")
+  new Thread(er).start()
+  password = new InputStreamReader(System.in).readLine()
+  er.stopMasking();
+}
+///////// CACHING THE PASSWORD /////////
+
+def deployer = new Deployer(scriptHome:SCRIPT_HOME, env: env, nthreads: nthreads, deployType: deployType, dry: dry,
+                            nobackup: nobackup, nostart: nostart, extraArgs: extraArgs, password: password)
+
+def workers = deployer.deploy (target, machines) { app, m ->
+  println "FINISHED ${app.name} on machine ${m.name}"  
+}
+
+Thread.sleep(2000)
+
+workers.each { w ->
+  w.waitForWorker(timeout)
+}
+
+workers.each { w ->
+  println w.getReport()
+}
+
+
+
+
+
+
+///////// CLASSES /////////
+abstract class Worker implements Runnable
+{
+  protected Environment env
+  protected Application app
+  protected Machine m
+  protected String deployType
+  protected boolean nobackup
+  protected boolean nostart
+  protected String extraArgs
+  protected boolean dry
+  protected File scriptHome
+  protected Closure notification
+  protected String password
+  protected int id
+
+  private String[] exportedVars = ["SSH_AUTH_SOCK"]
+  private Process proc
+  private OutputStream outStream
+  protected Boolean inputToStart = false
+  private volatile Boolean started = false
+  private volatile Boolean finished = false
+  private volatile int code = -1
+
+  public String getReport()
+  {
+    if (finished)
+    {
+      return code == 0 ? "SUCCESSFULLY deployed ${app.name} on ${m}" : "NOT SUCCESSFULLY deployed ${app.name} on ${m} (return code was ${code})"
+    }
+    else
+    {
+      return "NOT finished deploying ${app.name} on ${m}"
+    }
+  }
+
+  public boolean isFinished()
+  {
+    return finished
+  }
+
+  public void run()
+  {
+    try
+    {
+      def outFile = new File(scriptHome, "logs/${env.buildNumber}/${app.name}/${m.name}.log")
+      outFile.getParentFile().mkdirs();
+      outFile.createNewFile();
+      outStream = StreamSource.INSTANCE.acquire(outFile)
+
+      outStream.println """---------- Deployment ----------
+ Environment is       ${env.name}
+
+ Application.... ${app.name}
+ Target Hosts... ${m.name}
+
+ Options
+   Deploy Type.. ${deployType}
+   NoBackup..... ${nobackup}
+   NoStart...... ${nostart}
+
+ Extra Args..... <${extraArgs}>
+"""
+      if (inputToStart)
+      {
+        println "PRESS ENTER TO PROCEED..."
+        new InputStreamReader(System.in).readLine()
+      }
+
+      started = true
+
+      String cmd = getCmd()
+      File execDir = new File(scriptHome, 'deploy_script')
+
+      Thread.sleep(new Random().nextInt(1000));
+
+      outStream.println "WORKER: ${cmd} (${execDir.getCanonicalPath()})"
+      // if we are not doing a dry run, then we actually execute the command
+      if (!dry)
+      {
+        outStream.println "WORKER: starting process"
+        // TODO MED RF: the locale variables should be removed after Ivo has added them to the main script
+        def toExport = ["DEPLOY_SCRIPT_PASSWORD=${password}","LC_ALL=en_US.UTF-8","LC_LANG=en_US.UTF-8"]
+            // export some variables from the current environment into the child one
+        exportedVars.each { var ->
+            String value = System.getenv(var)
+          toExport << "${var}=${value}"
+        }
+        proc = cmd.execute(toExport, execDir)
+        proc.out.close()
+
+        proc.consumeProcessOutput(outStream, outStream)
+
+        code = proc.waitFor()
+      }
+      else
+      {
+        outStream.println "WORKER: RUNNING IN DRY MODE"
+      }
+    }
+    catch (Exception e)
+    {
+      outStream.println "Exception was thrown when performing action on machine ${m} for application ${app.name}: ${e}"
+    }
+    finally
+    {
+      synchronized (this)
+      {
+        finished = true
+        notify()
+      }
+      notification.call (app, m)
+    }
+  }
+
+  public void waitForWorker(int timeoutInSeconds)
+  {
+    try
+    {
+      // before starting the countdown, make sure we are not waiting for user input
+      synchronized (this)
+      {
+        while (!started)
+        {
+          wait(100)
+        }
+      }
+      int left = timeoutInSeconds * 1000
+      outStream.println "WORKER: waiting for completion... (Timeout is ${new Date(System.currentTimeMillis() + left)})"
+      synchronized (this)
+      {
+        while (left > 0 && !finished)
+        {
+          outStream.flush()
+          long start = System.currentTimeMillis()
+          wait(400)  // We could just wait "left" ms, but we like to cycle here to flush the output stream more often
+          left -= (System.currentTimeMillis() - start)
+        }
+      }
+      if (!finished && proc)
+      {
+        outStream.println "WORKER: process didn't finish within timeout.. KILLING"
+        outStream.flush()
+        proc.destroy()
+      }
+    }
+    finally
+    {
+      outStream.println "WORKER: completed... (at ${new Date(System.currentTimeMillis())})"
+      StreamSource.INSTANCE.release(outStream)
+    }
+  }
+
+  protected abstract String getCmd()
+
+  /**
+   * Factory method to create the appropriate worker for the application
+   */
+  public static Worker create(int id, File scriptHome, Environment env, Application app, m, deployType, password, nobackup, nostart, extraArgs, notification, dry, inputToStart)
+  {
+    if (app.name == "leo" || app.name == "leocs")
+    {
+      return new LeoWorker(id: id, env: env, scriptHome: scriptHome, app: app, m: m, deployType: deployType, password: password, inputToStart: inputToStart,
+                          nobackup: nobackup, nostart: nostart, extraArgs: extraArgs, dry: dry, notification: notification)
+    }
+    else if (app.container.name.endsWith("jetty"))
+    {
+      return new JettyWorker(id: id, env: env, scriptHome: scriptHome, app: app, m: m, deployType: deployType, password: password, inputToStart: inputToStart,
+                          nobackup: nobackup, nostart: nostart, extraArgs: extraArgs, dry: dry, notification: notification)
+    }
+    else if (app.container.name.endsWith("tomcat"))
+    {
+      return new TomcatWorker(id: id, env: env, scriptHome: scriptHome, app: app, m: m, deployType: deployType, password: password, inputToStart: inputToStart,
+                          nobackup: nobackup, nostart: nostart, extraArgs: extraArgs, dry: dry, notification: notification)
+    }
+    // couldn't find appropriate worker
+    throw new IllegalArgumentException("Couldn't create worker for application ${app}")
+  }
+
+
+}
+
+class JettyWorker extends Worker
+{
+  protected String getCmd()
+  {
+    def res = "./deploy_jetty.sh ${app.name} ${m.name} nopause";
+    if (nostart)
+    {
+      res <<= " nostart"
+    }
+    if (nobackup)
+    {
+      res <<= " nobackup"
+    }
+    res <<= " " << deployType
+    return res
+  }
+}
+
+class LeoWorker extends Worker
+{
+  protected String getCmd()
+  {
+    def res = "./deploy_leo.sh ${app.name} ${m.name} nopause";
+    if (nostart)
+    {
+      res <<= " nostart"
+    }
+    if (nobackup)
+    {
+      res <<= " nobackup"
+    }
+    res <<= " " << deployType
+    return res
+  }
+}
+
+class TomcatWorker extends Worker
+{
+  protected String getCmd()
+  {
+    def res = "./deploy_webapp.sh ${app.name} ${m.name} nopause";
+    if (nostart)
+    {
+      res <<= " nostart"
+    }
+    if (nobackup)
+    {
+      res <<= " nobackup"
+    }
+    res <<= " " << deployType
+    return res
+  }
+}
+
+class MachineResolver
+{
+  static def getMatchingMachines(Application app, Range range)
+  {
+    def res = []
+    app.machines.each { m ->
+      if (range.contains(m.getIndex()))
+      {
+        res << m
+      }
+    }
+    return res
+  }
+
+  static def getExactMachines(Application app, List<String> machines)
+  {
+    def res = []
+    app.machines.each {Machine m ->
+      if (machines.contains(m.name))
+      {
+        res << m
+      }
+    }
+    return res
+  }
+}
+
+// Deploy an application
+class Deployer
+{
+  private String deployType
+  private boolean nobackup
+  private boolean nostart
+  private String extraArgs
+  private Environment env
+  private int nthreads
+  private File scriptHome
+  private String password
+  private boolean dry
+
+  def deploy(Application app, List<Machine> machines, Closure notification)
+  {
+    int nt = nthreads
+    if (!nt)
+    {
+      nt = machines.size
+    }
+    println "Deployer for application ${app.name} uses ${nt} threads..."
+    ExecutorService ex = Executors.newFixedThreadPool(nthreads)
+    def workers = []
+    machines.each { m ->
+      println m
+
+      // If we only use one thread we are doing the work sequentially. In this case we want to
+      // stop between executions and display a state of the situation
+      def worker = Worker.create(workers.size(), scriptHome, env, app, m, deployType, password, nobackup, nostart, extraArgs, notification, dry, nt == 1)
+      ex.submit(worker)
+      workers << worker
+    }
+    ex.shutdown()
+    return workers
+  }
+}
+
+
+// Loads the current manifest files into a simple data model
+class ModelLoader
+{
+   static Environment load(baseDir)
+   {
+     println "Loading configuration from ${baseDir.getCanonicalPath()}"
+
+     def currentBuild = new File(baseDir, "deploy_script/CURRENT_BUILD.TXT").readLines()
+     String buildNumber = currentBuild[0]
+     String contentVersion = currentBuild[1]
+     String env = currentBuild[2]
+
+     def apps = [:]
+     // data model reader
+     def appnames = new File(baseDir, "manif/app_name_" + env).readLines()
+     def appports = new File(baseDir, "manif/app_port_" + env).readLines()
+     def containers = new File(baseDir, "manif/container_mapping_" + env).readLines()
+     def appmachines = new File(baseDir, "manif/manifest_" + env).readLines()
+     appnames.each { line ->
+       def tokens = line.split(/\t/)
+       // the container for the app defaults to jetty, it will be overridden to tomcat for the
+       // frontend containers at a later step
+       apps[tokens[0]] = new Application(name: tokens[0], warFile: tokens[1])
+       apps[tokens[0]].container = new Container(name: 'jetty', app: apps[tokens[0]])
+     }
+     appports.each { line ->
+       def tokens = line.split(/\t/)
+       int port = 8080
+       if (tokens.length > 1)
+       {
+         port = Integer.valueOf(tokens[1].trim())
+       }
+
+       if (!apps.containsKey(tokens[0]))
+       {
+         apps[tokens[0]] = new Application(name: tokens[0])
+       }
+       apps[tokens[0]].port = port
+     }
+
+     containers.each { line ->
+       def tokens = line.split(/\t/)
+       def cont = new Container()
+       cont.name = tokens[1]
+       cont.app = apps[tokens[0]]
+       // check if the app exists
+       if (!apps.containsKey(tokens[0]))
+       {
+         apps[tokens[0]] = new Application(name: tokens[0])
+       }
+       apps[tokens[0]].container = cont
+     }
+
+     appmachines.each { line ->
+       def tokens = line.split(/( |\t)/)
+       def appname = tokens[0]
+
+       tokens[1..-1].each { t ->
+         // check if the app exists
+         if (!apps.containsKey(appname))
+         {
+           apps[appname] = new Application(name: appname)
+         }
+
+         // check if the token needs to be expanded
+         def matcher = (t =~ /(.*)\[(.*)\](.*)/)
+         if (matcher)
+         {
+           // need to expand token
+           def exp = matcher[0][2].split(',').each { r ->
+             def range = new  GroovyShell().evaluate("(" + r.replaceAll('-', '..') +")")
+             range.each { num ->
+               def m = new Machine()
+               m.name = matcher[0][1] + "${num}".padLeft(2, "0") + matcher[0][3]
+               apps[appname].machines << m
+             }
+           }
+         }
+         else
+         {
+           // just one machine
+           apps[appname].machines << new Machine(name: t)
+         }
+       }
+
+       apps[appname].machines.sort()
+     }
+     return new Environment(apps: apps, name: env, buildNumber: buildNumber, contentVersion: contentVersion);
+   }
+}
+
+
+// (simplified) data model classes
+class Machine implements Comparable {
+  // the index is a number of at least 2 digits (would not work if we had more than one
+  // digit in the environment name)
+  private final java.util.regex.Pattern INDEX_PATTERN = ~/\d\d+/
+  String name
+
+  public String toString() { return "[M: ${name}]" }
+
+  public int compareTo(Object o) {
+    if (!o instanceof Machine)
+    {
+      throw new IllegalArgumentException();
+    }
+    return this.name.compareTo(((Machine)o).name)
+  }
+
+  public int getIndex()
+  {
+    def idx = INDEX_PATTERN.matcher(name)[0]
+    return Integer.valueOf(idx)
+  }
+
+}
+
+class Container {
+  String name
+  Application app
+
+  public String toString() { return "[C: ${name}]" }
+}
+
+class Application {
+  String name
+  String warFile
+  def machines = []
+  Container container
+  Integer port
+
+  public void setName(String name)
+  {
+    if (!warFile)
+    {
+      warFile = name
+    }
+    this.name = name
+  }
+
+  public String toString()
+  {
+    return "[APP - ${name} - ${warFile} - ${machines} - ${container} - ${port}]"
+  }
+}
+
+class Environment
+{
+  String name
+  String buildNumber
+  String contentVersion
+  Map<String, Application> apps
+}
+
+// Helper class to mask the password when inputting it in the console
+class EraserThread implements Runnable {
+  private boolean stop;
+
+   /**
+    *@param The prompt displayed to the user
+    */
+   public EraserThread(String prompt) {
+       System.out.print(prompt);
+   }
+
+   /**
+    * Begin masking...display asterisks (*)
+    */
+   public void run () {
+      stop = true;
+      while (stop) {
+         System.out.print(" \b\b");
+	 try {
+	    Thread.currentThread().sleep(1);
+         } catch(InterruptedException ie) {
+            ie.printStackTrace();
+         }
+      }
+   }
+
+   /**
+    * Instruct the thread to stop masking
+    */
+   public void stopMasking() {
+      this.stop = false;
+   }
+}
+
+
+class StreamSource
+{
+  // singleton
+  public final static StreamSource INSTANCE = new StreamSource()
+
+  private boolean _available = true
+
+  private StreamSource() { } // Avoid initialization
+
+  /**
+   * Return an output stream that points to the given file
+   * If the standard output stream is available, it will return an output stream
+   * that will go to both the file and the standard output.
+   * <b>Always call release() after being done with the stream to release the standard
+   * output stream</b>
+   */
+  public synchronized OutputStream acquire(File target)
+  {
+    // if System.out is available, we'll use it
+    if (_available)
+    {
+      return new ChainOutputStream(first: new SynchronizedOutputStream(target: System.out),
+              second: new SynchronizedOutputStream(target: target.newOutputStream()))
+    }
+    else
+    {
+      return new SynchronizedOutputStream(target: target.newOutputStream())
+    }
+  }
+
+  public synchronized void release(OutputStream stream)
+  {
+    stream?.flush()
+    if (stream instanceof ChainOutputStream)
+    {
+      _available = true
+      // We only close the second one, we don't want to close System.out
+      ((ChainOutputStream)stream).second.close()
+    }
+  }
+}
+
+class SynchronizedOutputStream extends OutputStream
+{
+  OutputStream target
+
+  public synchronized void write(int b) throws IOException
+  {
+    target.write(b)
+  }
+
+  public synchronized void write(byte[] b) throws IOException
+  {
+    target.write(b)
+  }
+
+  public synchronized  void flush() throws IOException
+  {
+    target.flush()
+  }
+
+  public synchronized  void close() throws IOException
+  {
+    target.close()
+  }
+}
+
+class ChainOutputStream extends OutputStream
+{
+
+  OutputStream first
+  OutputStream second
+
+  public void write(int b)
+  {
+    Exception e = null
+    try
+    {
+      first.write(b)
+    }
+    catch (Exception ex)
+    {
+      e = ex
+    }
+    try
+    {
+      second.write(b)
+    }
+    catch (Exception ex)
+    {
+      e = ex
+    }
+    // if any of the two streams throws an exception we will throw it
+    // if both throw an exception the second one will override the first
+    if (e) throw e
+  }
+
+  public void flush() throws IOException
+  {
+    first.flush()
+    second.flush()
+  }
+
+  public void close() throws IOException
+  {
+    first.close()
+    second.close()
+  }
+
+
+}

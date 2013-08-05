@@ -1,0 +1,43 @@
+#!/bin/bash
+#
+# lwang: purpose of this script is to compare cpu cores in both ech3 and ela4 hosts
+#
+#	this script has to be run on esv4-eng-portal where glulist is runnable
+#
+echo "starting..."
+
+ALL_SERVICES_ECH3=`glulist -e ech3`
+ALL_SERVICES_ELA4=`glulist -e ela4`
+
+if [[ "$@" != '' ]]; then
+  ALL_SERVICES_ECH3="$@"
+fi
+
+echo
+echo $ALL_SERVICES_ECH3
+echo
+
+for svc in $ALL_SERVICES_ECH3; do
+  if [[ $svc == 'agent' ]]; then
+    continue
+  fi
+  echo
+  echo ---------------------------------- $svc 
+  echo
+  ALL_NODES_ECH3=`glulist -e ech3 -s $svc`
+  ALL_NODES_ELA4=`glulist -e ela4 -s $svc`
+
+  for h in $ALL_NODES_ECH3; do
+    num=$(ssh -o ConnectTimeout=10  $h '/usr/sbin/prtconf | /bin/egrep "cpu[,| (]" | wc -l ' 2>/dev/null)
+    echo -ne  "    $h : $num\n"
+  done
+  echo -ne "    ~~~~~~~~~~~~~~~~~\n"
+
+  for h in $ALL_NODES_ELA4; do
+    num=$(ssh -o ConnectTimeout=10 $h '/usr/sbin/prtconf | /bin/egrep "cpu[,| (]" | wc -l ' 2>/dev/null)
+    echo -ne  "    $h : $num\n"
+  done
+done
+
+exit
+

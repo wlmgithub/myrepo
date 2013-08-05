@@ -1,0 +1,23 @@
+#!/bin/bash
+#
+# lwang: wrapper around gen_data* in /usr/local/noc/bin
+#
+export PATH=$PATH:/usr/local/foobar/bin:/usr/local/noc/bin
+
+DOCROOT=/Library/WebServer/Documents/dashboard/data
+SCRDIR=/usr/local/noc/bin
+
+### cleanup the data
+for d in total_count services_not_running capacity_audit version_mismatch 
+do
+  cd $DOCROOT/$d && rm -f * 2>/dev/null
+done
+
+### gen the data
+for cmd in gen_data_total_count gen_data_services_not_running gen_data_capacity_audit gen_data_version_mismatch
+do
+  echo "Running $SCRDIR/$cmd"
+  $SCRDIR/$cmd
+done
+
+echo "DONE"

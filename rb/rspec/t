@@ -1,0 +1,4 @@
+require 'square'
+
+pmt = Payment.new(0.15)
+puts pmt.fee_amount( )

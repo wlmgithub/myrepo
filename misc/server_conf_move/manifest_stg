@@ -1,0 +1,232 @@
+abook	esv4-be01.stg
+abook-cloud	esv4-be01.stg
+abook-search	esv4-be06.stg esv4-be07.stg esv4-be08.stg esv4-be09.stg
+abook-tag	esv4-be01.stg
+activemq	esv4-be01.stg esv4-be02.stg esv4-be03.stg esv4-be04.stg esv4-be06.stg esv4-be07.stg esv4-be08.stg esv4-be09.stg esv4-cdn01.stg
+agent	esv4-auth01.stg esv4-be01.stg esv4-be02.stg esv4-be03.stg esv4-be04.stg esv4-be05.stg esv4-be06.stg esv4-be07.stg esv4-be08.stg esv4-be09.stg esv4-be10.stg esv4-be11.stg esv4-be12.stg esv4-be13.stg esv4-be14.stg esv4-be15.stg esv4-be16.stg esv4-be17.stg esv4-be18.stg esv4-cdn01.stg esv4-cs01.stg esv4-cs02.stg esv4-fe01.stg esv4-fe02.stg esv4-fe03.stg esv4-fe04.stg esv4-fe05.stg esv4-fe06.stg esv4-fe07.stg esv4-mes04.stg esv4-rdb05.stg esv4-rdb07.stg esv4-ss01.stg esv4-ss02.stg 
+ams	esv4-be04.stg
+anet-batch	esv4-be09.stg
+anet-bps	esv4-be09.stg
+anet-cloud	esv4-be06.stg esv4-be07.stg esv4-be08.stg esv4-be09.stg
+anet-databusrelay	esv4-be11.stg
+anet-digest	esv4-be01.stg
+anet-search	esv4-be13.stg
+anet-server	esv4-be03.stg
+ape-delivery-be	esv4-auth01.stg
+ape-delivery	esv4-pxy01.stg
+ape-mgmt	esv4-fe06.stg
+ape-cs	esv4-be02.stg
+appdata	esv4-be02.stg
+appreg	esv4-be02.stg
+auth-server	esv4-auth01.stg
+ayn-search	esv4-ss01.stg esv4-ss02.stg
+ayn-server	esv4-ss01.stg esv4-ss02.stg
+bwl-ds	esv4-auth01.stg
+campaigns-ds	esv4-be01.stg
+cap	esv4-fe05.stg
+cap2-ds	esv4-be03.stg
+cap2-crt	esv4-pxy01.stg
+captcha	esv4-fe07.stg esv4-mes04.stg
+cc-bps	esv4-be13.stg
+chameleon-selection	esv4-be02.stg
+cloud	esv4-cs01.stg
+comm-dispatcher	esv4-cdn01.stg
+comm-dto-delivery	esv4-cdn01.stg
+comm-inbox	esv4-be06.stg esv4-be07.stg esv4-be08.stg esv4-be09.stg
+comm-inbox-bps	esv4-be13.stg
+comm-server	esv4-cdn01.stg
+company-bizfollow-collector	esv4-be13.stg
+company-bizfollow-ds	esv4-be13.stg
+company-bizfollow-emailer	esv4-be13.stg
+company-bizfollow-autofollow	esv4-be13.stg
+company-cloud	esv4-be21.stg
+company-databusrelay	esv4-be11.stg
+company-dir-search	esv4-be10.stg
+company-name-search	esv4-be10.stg
+comm-rebalancer	esv4-cdn01.stg
+company-server	esv4-be03.stg
+companyAutoGF	esv4-be10.stg
+configuration-server	esv4-be05.stg
+connections-bps	esv4-be15.stg
+connections-databusrelay	esv4-be11.stg
+connections-proposal-mgr	esv4-be15.stg
+cloud-session	esv4-be15.stg
+cs-replication	esv4-be12.stg
+csp	esv4-fe05.stg
+csp-service	esv4-be14.stg
+csp-tracking	esv4-be14.stg
+data-platform	esv4-be02.stg esv4-be01.stg
+data-platform-filtering	esv4-be02.stg
+data-platform-storage	esv4-cs02.stg esv4-be04.stg esv4-be03.stg esv3-be06.corp esv3-be07.corp esv3-be08.corp
+data-platform-typeahead	esv4-be10.stg
+databus-relay	esv4-be11.stg
+dictionary	esv4-be03.stg
+dynaTrace-server	esv4-be13.stg
+depo	esv4-be02.stg
+dsc-store	esv4-auth01.stg
+dsc-store-broker	esv4-auth01.stg
+dsc-store-storage	esv4-auth01.stg esv4-be12.stg
+edureconnect	esv4-be03.stg
+els	esv4-be15.stg esv4-be16.stg
+eraser	esv4-be05.stg
+eos	esv4-be09.stg
+eos-databusrelay	esv4-be11.stg
+external-tracking	esv4-fe03.stg
+entitlements-bps	esv4-be15.stg
+fandango	esv4-be09.stg
+fcctrack-server	esv4-be04.stg
+forum	esv4-cdn01.stg
+forum-databusrelay	esv4-be11.stg
+forum-notification	esv4-cdn01.stg
+forum-search	esv4-be14.stg esv4-ss02.stg
+fuse-batch	esv4-be04.stg
+fuse-server	esv4-be03.stg
+following-bps	esv4-be01.stg
+following-ds	esv4-be01.stg
+geo-server	esv4-be03.stg
+healthcheck-server	esv4-fe06.stg
+history	esv4-be21.stg
+searchf	esv4-fe02.stg
+inbox	esv4-fe03.stg
+invitations	esv4-be09.stg
+jer	esv4-be04.stg
+jive	esv4-fe09.stg
+job-search	esv4-ss01.stg
+job-search-bps	esv4-ss01.stg
+jobs-bps	esv4-be04.stg
+jobs-databusrelay	esv4-be11.stg
+jobs-simplyhired-proxy	esv4-pxy02.stg
+jobmatch-bps	esv4-be13.stg
+jobs-svf	esv4-be13.stg
+mnybe-tasks	esv4-be04.stg
+jobs-server	esv4-be04.stg
+leadgendownload	esv4-fe04.stg
+leadgenservice	esv4-be16.stg
+leo	esv4-fe02.stg
+leocs	esv4-fe06.stg
+lmt	esv4-be05.stg
+liar-app	esv3-be05.corp
+liar-databusrelay	esv4-be11.stg
+liar-life	esv3-be05.corp esv3-be08.corp
+liar-member-search	esv3-be01.corp esv3-be02.corp esv3-be03.corp esv3-be04.corp esv3-be06.corp esv3-be07.corp
+liar-group-recommendation	esv3-be08.corp
+liar-job-recommendation	esv3-be08.corp
+lite	esv4-fe01.stg
+media-server	esv4-mes04.stg
+media-admin	esv4-mes04.stg
+media-backend	esv4-mes04.stg
+media-proxy-admin	esv4-auth01.stg
+media-proxy	esv4-pxy02.stg
+member2-core-ds	esv4-be12.stg
+member2-databusrelay	esv4-be11.stg
+member2rep	esv4-be12.stg
+member2repreader	esv4-be12.stg
+miniprofile-rep	esv4-be12.stg
+miniprofilerepreader	esv4-be12.stg
+mnr	esv4-ss01.stg
+mpr	esv4-fe07.stg
+mailapp	esv4-be02.stg
+mupld	esv4-fe07.stg
+news-clustering	esv4-be15.stg
+news-databusrelay	esv4-be11.stg
+news-discovery	esv4-pxy01.stg
+news-batch	esv4-ss02.stg
+news-fetcher	esv4-pxy01.stg
+news-search	esv4-ss01.stg
+notifier	esv4-cdn01.stg
+nhome	esv4-fe02.stg
+nus	esv4-cdn01.stg
+nus-cloud	esv4-be06.stg esv4-be07.stg esv4-be08.stg esv4-be09.stg
+nus-cmpy-cloud	esv4-be01.stg
+nus-databusrelay	esv4-be11.stg
+nus-digest	esv4-cdn01.stg esv4-be01.stg
+nus-efeed-databusrelay	esv4-be11.stg
+nus-notifier	esv4-cdn01.stg
+nus-purge	esv4-be09.stg
+nus-write	esv4-be02.stg
+ofac-push	esv4-pmt01.stg
+oms-bps	esv4-be04.stg
+oms-server	esv4-be04.stg
+oms-acctupd	esv4-be04.stg
+opensocial	esv4-fe04.stg esv4-fe08.stg
+pal	esv4-fe04.stg esv4-fe08.stg esv4-fe06.stg
+pal-beta	esv4-fe04.stg
+persona	esv4-be13.stg
+people-fbr	esv4-ss01.stg
+people-search	esv4-be17.stg esv4-be18.stg esv4-be35.stg esv4-be36.stg esv4-be19.stg esv4-be20.stg esv4-be22.stg esv4-be23.stg
+people-search-broker	esv4-ss01.stg esv4-be18.stg
+polls	esv4-fe05.stg
+profile	esv4-fe01.stg
+project-ds	esv4-be16.stg
+pprofile-bes	esv4-be05.stg
+pprofile-bps	esv4-be16.stg esv4-be21.stg
+pprofile-services	esv4-be16.stg esv4-be21.stg
+pprofile-ds	esv4-be16.stg
+pprofile-databusrelay	esv4-be11.stg
+pprofile-rep-ds	esv4-be13.stg
+pprofile	esv4-fe03.stg
+presence	esv4-cdn01.stg
+profile-services	esv4-be05.stg
+profile-targeting	esv4-be13.stg
+profile-targeting-ds	esv4-be16.stg
+ptagent-server	esv4-pmt01.stg
+ptagent-acctupd	esv4-pmt01.stg
+pup	esv4-cdn01.stg
+rate-limit	esv4-be01.stg
+rcharge-server	esv4-be04.stg
+redirect	esv4-fe04.stg
+reg	esv4-fe01.stg esv4-fe04.stg
+reminders	esv4-be04.stg
+repdb-server	esv4-rdb05.stg esv4-rdb07.stg
+rgraph	esv4-cs02.stg
+rtd	esv4-be01.stg
+saber	esv4-ss02.stg
+sales	esv4-fe06.stg
+salesservice	esv4-be16.stg
+sam-server	esv4-be05.stg
+sas	esv4-fe05.stg
+sas-campaign	esv4-be04.stg
+sas-databusrelay	esv4-be11.stg
+sasproc	esv4-be04.stg
+sas-jobs	esv4-be04.stg
+sas-report	esv4-be04.stg
+sastasks	esv4-be04.stg
+scds	esv4-fe03.stg
+scheduler	esv4-be04.stg
+scout	esv4-be05.stg esv4-be17.stg
+sdr	esv4-be03.stg
+sdr-databusrelay	esv4-be11.stg
+seo	esv4-fe03.stg
+shortlink	esv4-auth01.stg
+shortlink-frontend	esv4-fe01.stg
+snapshot-ds	esv4-be16.stg
+snapshot-bes	esv4-be05.stg
+snapshot-bps	esv4-be05.stg
+spa-ds	esv4-be16.stg
+spellcheck	esv4-ss02.stg
+subscriptions-ds	esv4-be16.stg
+subscription-replication	esv4-be20.stg
+squid	esv4-pxy01.stg
+tac-bps	esv4-auth01.stg
+tac-ds	esv4-auth01.stg
+tapservice	esv4-be14.stg
+tap	esv4-fe06.stg
+targeting-services	esv4-be02.stg
+tether	esv4-auth01.stg
+throttler-server	esv4-fe04.stg
+twitter-streaming	esv4-pxy01.stg
+twitter-sync-apiproxy	esv4-pxy01.stg
+twitter-sync	esv4-be03.stg
+typeaheadv3	esv4-fe08.stg
+typeaheadv4	esv4-fe08.stg
+uas	esv4-fe04.stg esv4-fe06.stg
+ucv	esv4-pxy01.stg
+voldemort	esv4-be03.stg esv4-be10.stg esv4-be14.stg esv4-be15.stg
+wmi	esv4-pxy01.stg
+webtrack-server	esv4-be05.stg
+wotc-bps	esv4-be09.stg
+wotc-listener	esv4-be09.stg
+wotc-tracker	esv4-be01.stg
+wps	esv4-fe03.stg
+ws	esv4-fe04.stg
+xray	esv4-be13.stg

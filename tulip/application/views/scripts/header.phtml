@@ -1,0 +1,66 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<title><?= $this->pageTitle ?></title>
+<link rel="stylesheet" href="<?= $this->urlHome ?>/css/style.css" type="text/css" media="screen" />
+<link rel="stylesheet" type="text/css" href="<?= $this->urlHome ?>/css/forms.css" />
+<link rel="stylesheet" type="text/css" href="<?= $this->urlHome ?>/css/foobar.css" />
+<link rel="shortcut icon" type="image/ico" href="<?= $this->urlHome ?>/favicon.ico">
+<link rel="stylesheet" type="text/css" href="<?= $this->urlHome ?>/css/autocomplete.css" />
+
+<?php if ($this->from == "index" || $this->from == "search" || $this->from == "main" ) { 	?>
+<link rel="stylesheet" type="text/css" href="<?= $this->urlHome ?>/css/tablesorter.css" />
+<link rel="stylesheet" type="text/css" href="<?= $this->urlHome ?>/css/jquery.tablesorter.pager.css"  />
+
+<?php 	} ?>
+
+<script type="text/javascript" src="<?= $this->urlHome ?>/js/jquery-1.2.6.min.js"></script>
+<script type="text/javascript" src="<?= $this->urlHome ?>/js/jquery.tablednd_0_5.js"></script>
+<script type="text/javascript" src="<?= $this->urlHome ?>/js/jquery-selso-1.0.1.js"></script>
+<script type="text/javascript">
+	var url_home = "<?= $this->urlHome ?>";
+</script>
+
+<?php if ($this->from == "plan") { 	?>
+<link rel="stylesheet" type="text/css" href="<?= $this->urlHome ?>/css/dataentry.css" />
+<link href="<?= $this->urlHome ?>/css/jqueryMultiSelect.css" rel="stylesheet" type="text/css" /> 
+
+<script type="text/javascript" src="<?= $this->urlHome ?>/js/jquery.highlightFade.js"></script>  
+<script src="<?= $this->urlHome ?>/js/jqueryMultiSelect.js" type="text/javascript"></script>
+ 
+
+<script src="<?= $this->urlHome ?>/js/plan.js" type="text/javascript"></script>
+<?php 	} ?>
+
+<?php if ($this->from == "execute") { 	?>
+<link rel="stylesheet" type="text/css" href="<?= $this->urlHome ?>/css/dataentry.css" />
+<?php 	} ?>
+</head>
+<body>
+<div id="top">
+	<div id="header"><h1><a href="<?= $this->urlHome ?>"><?= $this->pageTitle ?></a></h1></div>
+</div>
+<div id="nav">
+	<div id="nav2">
+		<ul class="nav2">
+			<li><a style="background:#27537A;border:1px solid #27537A;color:#fff;" href="<?= $this->urlHome ?>/index">Home</a></li>
+<!--
+			<li><a  href="<?= $this->urlHome ?>/index/demo">Demo</a></li>
+-->
+			<li><a  href="<?= $this->urlHome ?>/index/manifest"> Manifest </a></li>
+			<li><a  href="<?= $this->urlHome ?>/index/gluconsole"> GLU Console</a></li>
+			<li><a  href="<?= $this->urlHome ?>/index/metrics">Metrics</a></li>
+			<li><a  href="<?= $this->urlHome ?>/index/workflow">Workflow</a></li>
+			<li><a  href="<?= $this->urlHome ?>/index/cfg2"> Config2.0 </a></li>
+
+		</ul>
+		 <form class="search" style="float:right;padding:4px;" method="get" action="<?= $this->urlHome ?>/index/search" >
+			<input type="hidden" name="form_submitted" value="1" />
+			<input type="text" id="keyword" name="keyword" value="<?= $this->keyword ?>" />
+			<input type="submit" value="Search" id="submitbutton" />
+		  </form>
+	</div>
+	
+</div>
+<div id="main"  style="<?= $this->layout == "full" ? 'width:100%;padding-top:10px;' : 'padding-top:10px;' ?>" >
+

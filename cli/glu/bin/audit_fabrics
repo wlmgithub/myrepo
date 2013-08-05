@@ -1,0 +1,152 @@
+#!/export/apps/splunk/i001/splunk/bin/python
+#
+# lwang: audit app(s) against all fabrics/envs 
+#
+#      $  ./audit_fabrics  -h
+#
+from __future__ import with_statement 
+import sys
+import os
+import re
+import subprocess
+from optparse import OptionParser
+from socket import gethostname
+import atexit
+import shutil
+import time
+
+# globals, yucky
+ALL_ENVS = [ 'ei1', 'ei3', 'stg', 'beta', 'ech3', 'ela4' ] 
+ALL_PROD_ENVS = [ 'ech3', 'ela4' ] 
+ITOPS_HOME = os.environ['ITOPS_HOME']
+RELREPO = os.environ['RELREPO']
+AUDIT_SCR = "%s/bin/audit_push" % ITOPS_HOME
+FS_DIR = '/export/content/http/i001/htdocs/cm/audit_fabrics'
+
+
+####################### defs
+def get_parser():
+  usage = "usage: %prog [options] "
+  parser = OptionParser(usage)
+  parser.add_option("-e", "--env", dest="envname",
+                        help="Environment name. If not given, will audit against all envs: %s " % ' '.join(ALL_ENVS) ) 
+  parser.add_option("-f", "--file", dest="filename",
+                        help="read data from FILENAME which contains on each line an appname, e.g., oms-server, webtrack-server etc.")
+  parser.add_option("-a", "--app", dest="appname",
+                        help="The appname provided, e.g., should use auth-server rather than auth")
+  parser.add_option("-p", "--prodonly",
+                      action="store_true", dest="prodonly",
+                        help="Do for prod envs only, i.e., ela4 and ech3")
+  parser.add_option("-v", "--verbose",
+                      action="store_true", dest="verbose",
+                        help="In verbose mode")
+  parser.add_option("-d", "--debug",
+                      action="store_true", dest="debug",
+                        help="In debug mode")
+
+  return parser
+
+def error( msg=None, keepon=False ):
+  print >>sys.stderr, "%s" % msg
+  if keepon: 
+    pass
+  else:
+    sys.exit(1)
+  
+def check_host():
+  hostname = gethostname()
+  if hostname != 'rotozip.corp':
+    error( "You need to run this script on rotozip." )
+
+def run_cmd( cmd, debug=None ):
+  if debug:
+    print "running cmd: " + cmd
+  try:
+    retcode = subprocess.call( " %s " % cmd, shell=True )
+    if retcode < 0:
+      print >>sys.stderr, "Child was terminated by signal", -retcode      
+  except OSError, e:
+    print >>sys.stderr, "Execution failed: ", e
+
+def get_apps_from_file( filename ):
+  apps = []
+  with open( filename ) as fh:
+    for line in fh:
+      apps.append( line.strip() )
+  return apps
+
+def run_ch_cmd( dir ):
+  cmd = "chmod -R 777 %s/* 2>/dev/null" % dir 
+  run_cmd( cmd )
+
+def make_my_dir( myroot, app ):
+  my_dir = os.path.join( myroot, app )
+#  if os.path.isdir( my_dir ):
+#    shutil.rmtree( my_dir )
+  if not os.path.isdir( my_dir ):
+    os.mkdir( my_dir )
+  return my_dir
+ 
+
+def update_relrepo():
+  cmd = "svn up %s" % RELREPO
+  run_cmd(cmd)
+
+################ main()
+
+def main():
+  check_host()
+  parser = get_parser()
+  options, args = parser.parse_args()
+
+  update_relrepo()
+
+  all_envs = ALL_ENVS
+  if options.prodonly:
+    all_envs = ALL_PROD_ENVS
+  if options.envname:
+    all_envs  = [ options.envname ]
+
+  if options.debug:
+    for i in  all_envs:
+      print i
+  
+    print ITOPS_HOME
+    print AUDIT_SCR
+  
+  if options.appname and options.filename:
+    error( "--app and --file are mutually exclusive.")
+
+  if not options.appname and not options.filename:
+    error( "either --app or --file needed.")
+
+  all_apps = []
+  if options.filename:
+    all_apps = get_apps_from_file( options.filename )
+  elif options.appname:
+    all_apps = [ options.appname ]
+
+  if options.debug:
+    print all_apps
+
+  try:
+    # now that we have all_envs and all_apps, we are ready to run AUDIT_SCR
+    for app in all_apps:
+      app_dir = make_my_dir( FS_DIR,  app )
+      for env in all_envs:
+        env_dir = make_my_dir( app_dir, env )
+        cmd = "%s -n -e %s %s | /bin/tee %s " % ( AUDIT_SCR, env, app, env_dir+'/res.txt' ) 
+        run_cmd( cmd )
+  except KeyboardInterrupt:
+    run_ch_cmd( FS_DIR )
+
+  # run ch cmd
+  atexit.register( run_ch_cmd, FS_DIR   )
+
+
+if __name__ == '__main__':
+  start_time = time.time()
+  main()
+  end_time = time.time()
+  print "\nTime elapsed = ", end_time - start_time, " seconds."
+  

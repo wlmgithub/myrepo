@@ -1,0 +1,83 @@
+#!/usr/bin/env python2.6
+#
+# Purpose: to generate manifest in the conventional sense, but use GLU API this time
+# 
+
+import sys
+from collections import defaultdict
+
+import foobar.cli
+import foobar.tools.glu
+import foobar.tools.product
+import foobar.utils.seq
+
+
+def main():
+
+  cli = foobar.cli.CLI()
+
+  #
+  # TODO: add more options to control prog behavior
+  #
+  cli.set_option('-f', '--fabric', required=True, help='Specify an fabric, if used by itself queries all services in an fabric')
+
+  with cli.run() as c:
+
+    wars_of = defaultdict(list)
+    hosts_of = defaultdict(list)
+    port_of = defaultdict()
+    product_of = defaultdict()
+    service_of = defaultdict()
+    context_of = defaultdict()
+
+    fabric = foobar.tools.fabric.Fabric(c.args.fabric)
+
+    # actually all service container names
+    all_services = [ i.container.name for p in fabric.products for s in p.services for i in s.instances ]
+
+    # Sort the results so things are generally consistent
+    all_services = foobar.utils.seq.unique(all_services)
+    all_services.sort()
+
+    for p in fabric.products:
+      for s in p.services:
+        for i in s.instances:
+          warname = i.coordinates.split('/')[-2]
+          host = i.host.name
+          cname = i.container.name  # cname: service instance container name 
+          port_of[cname] = i.port
+          if warname not in wars_of[cname]:
+            wars_of[cname].append(warname)
+          if host not in hosts_of[cname]:
+            hosts_of[cname].append(host)
+          product_of[cname] = s.product.name
+          service_of[cname] = s.name
+          if s.context:
+            context_of[cname] = s.context
+          else:
+            context_of[cname] = ''
+ 
+    # s is actually a container name
+    print "=======", "\t", "=======", "\t", "=========", "\t", "=======", "\t", "====", "\t", "====", "\t", "=====" 
+    print "Product", "\t", "Service", "\t", "Container", "\t", "Context", "\t", "Port", "\t", "WARs", "\t", "Hosts" 
+    print "=======", "\t", "=======", "\t", "=========", "\t", "=======", "\t", "====", "\t", "====", "\t", "=====" 
+
+    for s in all_services:
+      print product_of[s], "\t",
+      print service_of[s], "\t",
+      print s, "\t",
+      print context_of[s], "\t",
+      print port_of[s], "\t",
+      for w in wars_of[s]:
+        print w,
+      print "\t",
+      for h in hosts_of[s]:
+        print h,
+      print 
+
+    print "=======", "\t", "=======", "\t", "=========", "\t", "=======", "\t", "====", "\t", "====", "\t", "=====" 
+    print "Product", "\t", "Service", "\t", "Container", "\t", "Context", "\t", "Port", "\t", "WARs", "\t", "Hosts" 
+    print "=======", "\t", "=======", "\t", "=========", "\t", "=======", "\t", "====", "\t", "====", "\t", "=====" 
+
+if __name__ == "__main__":
+  main()

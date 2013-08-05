@@ -1,0 +1,139 @@
+<?= $this->partial('header.phtml', array(
+    'from' => 'metrics','urlHome' => $this->urlHome)); ?>
+
+(under construction...)
+
+<ul>
+<li> <a href='http://rotozip.corp.foobar.com/cgi-bin/lwang/py/show_audit_fabrics.py ' target='_blank'>  Show  Fabrics Audit Result  </a>  </li>
+<li> <a href='http://rotozip.corp.foobar.com/cgi-bin/lwang/py/prod/show_audit_fabrics.py ' target='_blank'>  Show  Fabrics Audit Result only for PROD envs  </a>  </li>
+<p>
+<li> <a href='http://tools.corp.foobar.com:8899/' target='_blank'> PROD Release Audit Page </a> </li>
+<p>
+<li> <a href='http://tools.corp.foobar.com:8890/' target='_blank'> Show Multi Product Services </a> </li>
+<p>
+<li> <a href='http://tools.corp.foobar.com:5000/' target='_blank'> Daily Release Services </a> </li>
+</ul>
+
+
+<!-- TODO: do we need a pager here?
+
+        <div id="pager"  style="float:right;">
+                <form class="search" >
+                        <img src="<?= $this->urlHome ?>/images/icons/first.png" class="first"/>
+                        <img src="<?= $this->urlHome ?>/images/icons/prev.png" class="prev"/>
+                        <input type="text" class="pagedisplay"/>
+                        <img src="<?= $this->urlHome ?>/images/icons/next.png" class="next"/>
+                        <img src="<?= $this->urlHome ?>/images/icons/last.png" class="last"/>
+                        <select class="pagesize" id="pagesize">
+                                <option selected="selected"  value="10">10</option>
+                                <option value="20">20</option>
+                                <option value="30">30</option>
+                                <option  value="40">40</option>
+                        </select>
+                </form>
+        </div>
+
+-->
+
+
+<?php
+
+// echo  $this->urlHome . "/inc/graphs.inc.php";
+//   gives: https://sandbox01.corp.foobar.com/webroot/inc/graphs.inc.php
+
+
+
+/*---------------------------------- ok, shut it down ...
+
+echo "<h2> Component Metrics </h2>";
+
+include('/usr/local/Deployment/webroot/inc/graphs.inc.php');
+
+$graph = new BAR_GRAPH("hBar");
+
+
+$labels = '';
+$values = '';
+
+$componentMetrics = $this->componentMetricsMap;
+if ( count( $componentMetrics ) ) {
+  foreach ( $componentMetrics as $i => $c ) {
+//    echo "$i => $c <br />";
+    $labels .= "$i, ";
+    $values .= "$c, ";
+  }
+}
+
+$labels_trimmed = trim($labels, ', ');
+$values_trimmed = trim($values, ', ');
+
+
+$graph->values = $values_trimmed;
+$graph->labels = $labels_trimmed;
+//$graph->showValues = 1;
+echo $graph->create();
+------------------------------------*/
+
+
+
+
+
+/*
+                $keyword = $_REQUEST['q'];
+                if ($keyword)   {
+                        $idList = Model_ReleaseVehicle::getIdList($keyword);
+                        $listhtml = "";
+                        if (count($idList)) {
+                                foreach ($idList as $id)  {
+                                        $listhtml .= $id->release_vehicle_id . "\n";
+                                }
+                        } else {
+                           $listhtml .= "";
+                        }
+                        echo $listhtml;
+*/
+
+
+
+/**************************
+
+$idList = $this->idList;
+
+if ( count($idList) ) {
+  foreach ($idList as $id ) {
+    echo $id->release_vehicle_id . "<br />";
+  }
+}
+
+
+// shows: 
+//    R933-ech3-RC-4-121
+//    R933-ech3-RC-4-2
+//    R934-ech3-RC-5-4
+//    R934-ech3-RC-6-5
+//    R934-stg-RC-2-6
+//    R936-ech3-RC-6-7
+//    R936-ech3-RC-8-8
+//    R936-ech3-RC-9-11
+//    R936-stg-RC-2-6
+//    R936-stg-RC-9-10
+//    R936-stg-RC-9-9
+//    
+
+echo "<br /> <br />";
+
+$componentMetrics = $this->componentMetricsMap;
+if ( count( $componentMetrics ) ) {
+  foreach ( $componentMetrics as $i => $c ) {
+    echo "$i => $c <br />";
+  }
+
+}
+
+****************************/
+
+?>
+
+
+<?= $this->partial('footer.phtml', array(
+    'from' => 'footer','urlHome' => $this->urlHome)); ?>

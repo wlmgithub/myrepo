@@ -1,0 +1,25 @@
+Release notes for staging
+
+1. vi /home/HrTest-dev/webroot/blog/wp_config.php
+	- change the database to be test_HrBlog
+
+2. vi /home/HrTest-dev/webroot/index.php
+   - uncomment staging settings include_path
+   - replace 'dev' with 'staging'
+
+3. vi /home/HrTest-dev/cronjobs/ldapimporter.php
+   - uncomment the staging settings include_path
+   - Leave the settings as 'dev' for $config - Don't change 
+   
+Release notes for production
+
+
+1. vi /home/HrTest/webroot/index.php
+   - uncomment production settings include_path
+   - replace 'dev' with 'production'
+
+2. vi /home/HrTest/cronjobs/ldapimporter.php
+   - uncomment the production settings include_path
+   - Leave the settings as 'dev' for $config - Don't change 
+   
+3. sudo chmod 777 ldapimporter.out

@@ -1,0 +1,194 @@
+#!/usr/bin/env python2.6
+import os; activate_this=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'activate_this.py'); execfile(activate_this, dict(__file__=activate_this)); del os, activate_this
+
+#
+# lwang: OPS needs to have a fine-grained auditor tool: audit PROD ( currently PROD-ELA4, PROD-ECH3 ) using GLU API down to machine and instance levels
+# 
+"""
+  sample usage:
+
+  $ push_auditor  -c auth-serer
+
+  $ push_auditor -f prod-ela4 -c auth-server
+
+""" 
+
+import sys
+from collections import defaultdict
+
+import foobar.cli
+import foobar.tools.glu
+import foobar.tools.product
+import foobar.utils.seq
+
+
+def main():
+
+  cli = foobar.cli.CLI()
+
+  #
+  # TODO: add more options to control prog behavior
+  #
+  cli.set_option('-f', '--fabric', required=False, help='Specify an fabric, if used by itself queries all services in an fabric')
+  cli.set_option('-c', '--container', required=False, help='Specify a container, e.g., auth-server,  ')
+  cli.set_option('-s', '--service', required=False, help='Specify a service, e.g., security-auth  ')
+  cli.set_option('--silent', action='store_true',  help='Silent')
+
+  with cli.run() as c:
+
+    wars_of = defaultdict(list)
+    hosts_of = defaultdict(list)
+    port_of = defaultdict()
+    product_of = defaultdict()
+    service_of = defaultdict()
+    context_of = defaultdict()
+
+    if c.args.fabric:
+      do_one_fabric(c)
+    else:
+      do_all_fabrics(c)
+
+    sys.exit(0)
+
+
+def do_one_fabric(c):
+
+    fabric = foobar.tools.fabric.Fabric(c.args.fabric)
+
+    # actually all service container names
+    all_services = [ i.container.name for p in fabric.products for s in p.services for i in s.instances ]
+
+    # Sort the results so things are generally consistent
+    all_services = foobar.utils.seq.unique(all_services)
+    all_services.sort()
+
+    if c.args.container:
+      for p in fabric.products:
+        for s in p.services:
+            for i in s.instances:
+              warname = i.coordinates.split('/')[-2]
+              host = i.host.name
+              cname = i.container.name  # cname: service instance container name 
+              version = i.version
+              iname = i.id
+              if cname == c.args.container:
+                print cname, host, iname, version, i.state
+ 
+    elif c.args.service:
+      for p in fabric.products:
+        for s in p.services:
+            for i in s.instances:
+              warname = i.coordinates.split('/')[-2]
+              host = i.host.name
+              sname = i.name  # sname
+              version = i.version
+              iname = i.id
+              if sname == c.args.service:
+                print sname, host, iname, version, i.state
+ 
+    else:
+      for p in fabric.products:
+        for s in p.services:
+          for i in s.instances:
+            warname = i.coordinates.split('/')[-2]
+            host = i.host.name
+            sname = i.name  # sname
+            version = i.version
+            iname = i.id
+            print sname, host, iname, version, i.state
+  
+
+def do_all_fabrics(c):
+
+  versions = defaultdict(list)
+  fabricnames = [ 'PROD-ELA4', 'PROD-ECH3' ]
+  fabrics = [ foobar.tools.fabric.Fabric(fname)  for fname in fabricnames ] 
+  for fabric in fabrics:
+
+    if not c.args.silent:
+      print
+      print "Doing for %s " % fabric.name
+      print "=" * 80
+
+    # actually all service container names
+    all_services = [ i.container.name for p in fabric.products for s in p.services for i in s.instances ]
+
+    # Sort the results so things are generally consistent
+    all_services = foobar.utils.seq.unique(all_services)
+    all_services.sort()
+
+    if c.args.container:
+      for p in fabric.products:
+        for s in p.services:
+            for i in s.instances:
+              warname = i.coordinates.split('/')[-2]
+              host = i.host.name
+              cname = i.container.name  # cname: service instance container name 
+              version = i.version
+              iname = i.id
+              if cname == c.args.container:
+                if version not in versions[fabric.name]:
+                  versions[fabric.name].append(version)
+                if not c.args.silent:
+                  print cname, host, iname, version, i.state
+ 
+      if not c.args.silent:
+        if len(versions[fabric.name]) != 1:
+          print "NOT OK"
+        else:
+          print "OK"
+
+    elif c.args.service:
+      for p in fabric.products:
+        for s in p.services:
+            for i in s.instances:
+              warname = i.coordinates.split('/')[-2]
+              host = i.host.name
+              sname = i.name  # sname
+              version = i.version
+              iname = i.id
+              if sname == c.args.service:
+                if version not in versions[fabric.name]:
+                  versions[fabric.name].append(version)
+                if not c.args.silent:
+                  print sname, host, iname, version, i.state
+ 
+      if not c.args.silent:
+        if len(versions[fabric.name]) != 1:
+          print "NOT OK"
+        else:
+          print "OK"
+
+    else:
+      for p in fabric.products:
+        for s in p.services:
+          for i in s.instances:
+            warname = i.coordinates.split('/')[-2]
+            host = i.host.name
+            sname = i.name  # sname
+            version = i.version
+            iname = i.id
+            if c.args.silent:
+              print sname, host, iname, version, i.state
+ 
+
+  if c.args.container or c.args.service:
+    print
+    print "=" * 80
+    print "Auditing result: ", 
+  
+    first_fabricname = fabricnames[0]
+  #  print "first_fabric: %s " % versions[first_fabricname]
+    for fabricname in fabricnames[1:]:
+  #    print "fabric: %s " % versions[fabricname]
+      if len(versions[fabricname]) != 1 or versions[fabricname] != versions[first_fabricname]:
+        print "NOT OK"  
+      else:
+        print "OK"
+  
+    print "=" * 80
+    print 
+ 
+
+if __name__ == "__main__":
+  main()

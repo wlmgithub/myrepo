@@ -1,0 +1,23 @@
+
+
+1) verify existence of jdk1.5:
+
+$ITOPS_HOME/bin/check_hosts.sh beta 'ls -ld /usr/java'
+
+2) verify existence of jdk1.6:
+
+$ITOPS_HOME/bin/check_hosts.sh beta 'ls -l /export/apps/jdk'
+
+
+3)
+
+for i in `../../bin/cmtool.pl -a gethosts -env beta`; do echo ==== $i;  ssh $i "ls -l /usr/java" 2>/dev/null; done
+
+for i in `../../bin/cmtool.pl -a gethosts -env beta`; do echo ==== $i;  ssh $i "ls -l /export/apps/jdk" 2>/dev/null; done
+
+
+4) audit
+
+rotozip.corp:lwang[596] ~/code/itops/bin $ for i in `cat ../manif/manifest_stg | cut -f1 `; do ./audit_push -n -e stg $i; done  > /export/content/http/i001/htdocs/cm/adhoc/2ndstg/audit/stg
+
+rotozip.corp:lwang[597] ~/code/itops/bin $ for i in `cat ../manif/manifest_beta | cut -f1 `; do ./audit_push -n -e beta  $i; done  > /export/content/http/i001/htdocs/cm/adhoc/2ndstg/audit/beta

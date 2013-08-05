@@ -1,0 +1,17 @@
+#!/usr/bin/perl
+#
+use strict;
+use warnings;
+
+use Memoize;
+memoize( 'fib' );
+
+for ( 0..36 ) {
+  print $_ . ' => ' . fib($_) . "\n";
+}
+
+sub fib {
+  my $n = shift || 0;
+  return $n if ( $n < 2 );
+  return fib( $n-1 ) + fib( $n-2 );
+}

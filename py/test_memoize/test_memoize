@@ -1,0 +1,24 @@
+#
+# http://programmingzen.com/2009/05/18/memoization-in-ruby-and-python/
+# 
+import timeit
+from memoize import memoize
+
+def fib1(n):
+    if n < 2:
+        return n
+    else:
+        return fib1(n-1) + fib1(n-2)
+
+@memoize
+def fib2(n):
+    if n < 2:
+        return n
+    else:
+        return fib2(n-1) + fib2(n-2)	
+
+t1 = timeit.Timer("fib1(35)", "from __main__ import fib1")
+print t1.timeit(1)
+t2 = timeit.Timer("fib2(35)", "from __main__ import fib2")
+print t2.timeit(1)
+

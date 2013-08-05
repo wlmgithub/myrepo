@@ -1,0 +1,50 @@
+#################################################
+# ***** Please follow the following Format *****:
+#################################################
+#
+# <component><TAB><operation><TAB><objectname>
+# 
+# * <operation> is a placeholder to differentiate the operation fed to the script and that used in the jmx invocation
+# * if <operation> is __OPERATION__, the operations are restricted to: pause, resume
+# * if <operation> is __OPERATION__UpdatesFromDatabus, the operations are restricted to: suspend, restart
+#
+#################################################
+abook-cloud	__OPERATION__UpdatesFromDatabus	abook-cloud.abook-cloud:name=abookCloudAdmin
+anet-cloud	__OPERATION__UpdatesFromDatabus	anet-cloud.anet-cloud:name=anetCloudAdmin
+anet-server	__OPERATION__UpdatesFromDatabus	anet.anet:name=anetAdmin
+ayn-server	__OPERATION__	com.foobar.databus:type=DatabusConnectionPush,name=qaDatabusConnectionPush
+ayn-search	__OPERATION__UpdatesFromDatabus	ayn-search.ayn-search:name=aynSearchAdmin
+
+cloud	__OPERATION__UpdatesFromDatabus	cloud.cloud:name=cloudAdmin
+company-server	__OPERATION__UpdatesFromDatabus	com.foobar.databus:type=DatabusAdmin,name=companyAdmin
+company-bizfollow-ds	__OPERATION__	com.foobar.databus:type=DatabusConnectionPush,name=databusConnectionPush
+company-dir-search	__OPERATION__UpdatesFromDatabus	com.foobar.databus:type=DatabusAdmin,name=companyAdmin
+company-cloud	__OPERATION__UpdatesFromDatabus	companyCloud.company-cloud:name=companyCloudAdmin
+company-name-search	__OPERATION__	com.foobar.databus:type=DatabusConnectionPush,name=companyNameSearchDatabusConnectionPush
+connections-bps	__OPERATION__UpdatesFromDatabus	com.foobar.databus:type=DatabusAdmin,name=numConnectionsAdmin
+
+cs-replication 	__OPERATION__	com.foobar.databus:type=DatabusConnectionPush,name=databusConnectionPush
+csp-service	__OPERATION__UpdatesFromDatabus	cspserving.cspserving:name=cspserving-admin
+
+data-platform-typeahead	__OPERATION__	com.foobar.databus:type=DatabusConnectionPush,name=companyDatabusConnectionPush
+data-platform-filtering	__OPERATION__	com.foobar.databus:type=DatabusConnectionPush,name=topicsSeedDatabusConnectionPush
+
+els	__OPERATION__UpdatesFromDatabus	els.els:name=elsAdmin
+
+forum-search	__OPERATION__	forum-search.search:name=ForumDatabusConnectionPush
+
+job-search	__OPERATION__UpdatesFromDatabus	jobSearch.search:name=jobs-searchAdmin
+
+member2rep	__OPERATION__UpdatesFromDatabus	member2rep.member2rep:type=CacheMgr,name=memrepDalAdmin
+miniprofile-rep	__OPERATION__UpdatesFromDatabus	miniprofilerep.miniprofilerep:name=miniprofilerepAdmin
+
+news-search	__OPERATION__	news-search.search:name=NewsDatabusConnectionPush-newsSearchStartables
+nus-cloud	__OPERATION__UpdatesFromDatabus	com.foobar.databus:type=DatabusAdmin,name=nusCloudDatabusAdmin
+
+pprofile-ds	__OPERATION__UpdatesFromDatabus	pprofile-ds.pprofile-ds-databus:name=pprofileDsAdmin
+
+repdb-server	__OPERATION__UpdatesFromDatabus	repdb.repdb:name=repdbAdmin
+rgraph	__OPERATION__UpdatesFromDatabus	rgraph.rgraph:name=rgraphAdmin
+
+sdr	__OPERATION__UpdatesFromDatabus	sdr.sdr:name=sdrAdmin
+spellcheck	__OPERATION__UpdatesFromDatabus	spellcheck.spellcheck:name=spellCheckAdmin

@@ -1,0 +1,170 @@
+#!/export/apps/splunk/i001/splunk/bin/python
+#
+# lwang: This script is to automate marking a component config2.0 ready
+#
+#	./scr -h
+#
+# Assumption:
+#============
+#  * Need to have RELREPO env setup
+#  * 
+#
+import sys
+import os
+import subprocess
+from optparse import OptionParser
+from socket import gethostname
+
+from lxml import etree
+
+DIFF = '/bin/diff'
+SVN = '/usr/local/bin/svn'
+
+####################################
+def run_cmd(cmd):
+  try:
+    retcode = subprocess.call("%s" % cmd, shell=True)
+    if retcode < 0:
+      print >>sys.stderr, "Child was terminated by signal ", -retcode
+  except OSError,  e:
+    print >>sys.stderr, "Execution failed: ", e
+
+
+def change_tree(tree, names, options):
+  """modify tree for each name in names
+    change for name and any of its war 'ref's
+  """
+  for elem in tree.getiterator():
+    if elem.tag == 'container' and elem.attrib['name'] in names:
+      if options.rollback:
+        del elem.attrib['configRef']
+      else:
+        elem.set('configRef', '%s-container' % elem.attrib['name'])
+      children = elem.getchildren()
+      for child in children:
+        warname = child.attrib['ref']
+        if options.rollback:
+          del child.attrib['configRef']
+        else:
+          child.set('configRef', '%s-application' % warname)
+
+  return tree
+  
+
+def doit_for(xmlfile, outfile,  names, options):
+  # names :  list of container names
+  tree = etree.parse(xmlfile)
+  changed_tree = change_tree(tree, names, options)
+  changed_tree.write( outfile )
+
+
+def update_relrepo(relrepo_home):
+  cmd = "%s update %s" % (SVN, relrepo_home)
+  run_cmd(cmd)
+
+
+def checkin_changes_for(file, cfile, options):
+  # cfile: the changed file
+  # cfile -> file
+  os.rename(cfile, file)
+  
+  # checkin now
+  cmd = "%s ci -m 'checkedin by mark_as_cfg2 script' %s" % (SVN, file)
+  if options.verbose:
+    print "INFO: checking in changes..."
+  if options.debug:
+    print "running cmd: ", cmd
+  run_cmd(cmd)
+
+
+########## main()
+def main():
+  usage = "usage: %prog [options] "
+  parser = OptionParser(usage)
+  parser.add_option("-r", "--release", dest="release",
+			help="[required] Release name provided, e.g., R1106 ")
+  parser.add_option("-a", "--apps", dest="apps",
+			help="[required] Container names separated by comma, e.g., auth-server,spa-ds,wvmx ")
+  parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
+			help="In verbose mode")
+  parser.add_option("-d", "--debug", action="store_true", dest="debug",
+			help="In debug mode")
+  parser.add_option("-b", "--rollback", action="store_true", 
+			help="Rollback config2.0 mark for the apps given.")
+  parser.add_option( "-E", "--execute",  action="store_true",
+			help="Use it when you are ready to __execute__ it")
+
+  (options, args) = parser.parse_args()
+
+  # should only be run on rotozip
+  hostname = gethostname()
+  if hostname != 'rotozip.corp':
+    print >>sys.stderr, "ERROR: run the script on rotozip."
+    sys.exit(1)
+
+  # required:  options.release
+  if options.release == None:
+    print "ERROR: I need a release name , e.g., R1106"
+    parser.print_help()
+    sys.exit(1)
+
+  # required: options.apps
+  if options.apps == None:
+    print "ERROR: I need a container or a list of containers separated by comma"
+    parser.print_help()
+    sys.exit(1)
+
+  list_of_containers = options.apps.strip().split(',')
+  
+  relrepo_home = os.environ['RELREPO']
+
+  update_relrepo(relrepo_home)
+
+  containers_OPS_file = os.path.join(relrepo_home, 'model', 'src', 'containers_OPS.xml')
+  containers_file = os.path.join(relrepo_home, 'releases', options.release, 'containers.xml')
+
+  containers_OPS_file_changed = os.path.join(relrepo_home, 'model', 'src', 'containers_OPS.xml.changed')
+  containers_file_changed = os.path.join(relrepo_home, 'releases', options.release, 'containers.xml.changed')
+
+  if options.debug:
+    print >>sys.stderr, 'relrepo_home = ', relrepo_home
+    print >>sys.stderr, 'containers_OPS_file = ', containers_OPS_file
+    print >>sys.stderr, 'containers_file = ', containers_file
+    print >>sys.stderr, 'list_of_containers = ', list_of_containers
+  
+  # 
+  doit_for(containers_OPS_file, containers_OPS_file_changed, list_of_containers, options)
+  #
+  doit_for(containers_file, containers_file_changed, list_of_containers, options)
+
+
+  if options.verbose:
+    print '=' * 80
+    print "comparing %s  %s " % (containers_OPS_file, containers_OPS_file_changed)
+    print '=' * 80
+    cmd = "%s %s  %s" % (DIFF, containers_OPS_file, containers_OPS_file_changed)
+    run_cmd(cmd)
+
+    print '=' * 80
+    print "comparing %s  %s " % (containers_file, containers_file_changed)
+    print '=' * 80
+    cmd = "%s %s  %s" % (DIFF, containers_file, containers_file_changed)
+    run_cmd(cmd)
+
+  reply = raw_input("Now that you inspected the above diff(s), would you like to checkin? (y/n)")
+  reply = reply.strip()
+  if reply.startswith('y'):
+    # checkin_changes 
+    if options.execute:
+      checkin_changes_for(containers_OPS_file, containers_OPS_file_changed, options)
+      checkin_changes_for(containers_file, containers_file_changed, options)
+    else:
+      print "Would have checked in the changes. Use -E to actually do it."
+  else:
+    print >>sys.stderr, "Quit."
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+

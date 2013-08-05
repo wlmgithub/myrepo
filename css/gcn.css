@@ -1,0 +1,77 @@
+/*
+nothing yet
+but please do not remove the file
+*/
+
+/**************** in use *******/
+
+/* 'Advanced Search' in view has a fieldset */
+legend {
+#  border:1px solid green;
+  font-weight: bold;
+  font-size: 150%;
+}
+
+#delete_form {
+  position: absolute;
+  top: 80px;
+  right: 10px;
+}
+
+span.help {
+  text-decoration: underline;
+}
+
+#gcn_dashboard_title {
+  position: absolute;
+  top: 30px;
+  left: 555px;
+  
+}
+
+
+/*
+a:link { 
+	font-weight: bold; 
+	text-decoration: none; 
+	color: #B7A5DF;
+	}
+a:visited { 
+	font-weight: bold; 
+	text-decoration: none; 
+	color: #D4CDDC;
+	}
+a:hover, a:active { 
+	text-decoration: underline; 
+	color: #9685BA;
+	}
+
+*/
+
+/**************** NOT in use *******/
+div  #topimg {
+  position: center, overflow;
+  width: 2500px;
+  height: 30px;
+  
+}
+
+div #bottomimg {
+  position: center, overflow;
+  width: 1500px;
+  height: 20px;
+ 
+}
+
+#second {
+	width: 7em;
+	float: left;
+	
+	color: white;
+	background: #060;
+	padding: 1em;
+	margin: 0;
+}
+
+
+

@@ -1,0 +1,27 @@
+
+
+Thursday, July 1, 2010 3:28 PM
+
+Liming, need a script that could do the following:
+
+--check disk usage of /export/content once per hour on all machines in a particular environment, for a number of hours defined on command line
+--store this data somewhere for analysis
+
+kind of like the netstat script.  idea is I would run this during a perf run by Badri and look at places where disk usage gets near limit.  we could then expand disks on these hosts, look at why these services log so much etc.
+
+let me know if questions.
+
+--Tony
+
+
+##############################
+rotozip.corp:lwang[690] ~/code/itops/proj/disk_usage_mon $ time ./get_disk_usage.sh beta
+real    3m25.100s
+user    0m4.360s
+sys     0m3.533s
+
+##############################
+
+
+How to run:
+  ./run_disk_usage_analyzer

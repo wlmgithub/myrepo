@@ -1,0 +1,109 @@
+#!/usr/local/bin/python
+#
+# A script to query oracle and write the stats out to rrd
+#
+
+# Core Libs
+import time
+import calendar
+import os
+
+# 3rd party Libs
+import rrdtool
+import cx_Oracle
+
+# Local libs
+import foobar.rrd
+
+# Constants
+METRICDB = '(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = ela4-db25.prod.foobar.com)(PORT = 1521)) (CONNECT_DATA = (SERVICE_NAME = POEM2)))'
+USER = 'ingraphs'
+PASSWORD = 'ingraphs'
+SQL_DBLIST = 'select DB_NAME,ELA4_SERVER from DBLIST'
+METRIC_MAP = [ 'active_sessions', 'execs_per_sec', 'request_time_per_transaction', 'disk_reads', 'disk_writes', 'session_count', 'host_cpu' ]
+
+
+def write_rrd_files(metric_list, dir, cache=None):
+  base_dir = dir
+  for db, values in metric_list.items():
+    print "Writing stats for %s" % db
+    for row in values['values']:
+      print row
+      # Convert to epoch seconds for rrd
+      val_time = calendar.timegm(time.strptime(row[0], '%Y%m%d%H%M%S'))
+      for index, val in enumerate(row[1:]):
+        hdir = os.path.join(base_dir, 'db-'+db+'.foobar.com')
+        if not os.path.isdir(hdir):
+          os.makedirs(hdir)
+        file = os.path.join(hdir, '%s.rrd' % (METRIC_MAP[index]))
+        rrdobj = foobar.rrd.foobarRRD(file)
+        if not os.path.exists(file):
+          rrdobj.create('ds0', start=val_time)
+        if not cache:
+          rrdobj.update({'ds0': val}, date=val_time)
+        else:
+          rrdobj.cache_update(val, cache, date=val_time)
+
+def sleep_for(sec, old_time, new_time):
+  if (new_time - old_time) > sec:
+    print "Not sleeping"
+    return False
+  else:
+    sleep_time = (sec - (new_time - old_time))
+    print "Sleeping for %i" % sleep_time
+    time.sleep(sleep_time)
+
+def main():
+
+  while True:
+    script_start = time.time()
+    db_connection = cx_Oracle.connect(USER, PASSWORD, METRICDB)
+    db_cursor = db_connection.cursor()
+
+    # Generate a list of the DBs that we want metrics from
+    db_cursor.execute(SQL_DBLIST)
+    dblist = db_cursor.fetchall()
+
+    stats = dict()
+
+    # Jump back 10 minutes to fill in any gaps
+    start_time = time.gmtime(script_start - 600)
+
+    for db in dblist:
+      db_name = db[0]
+      host_name = db[1]
+      stats[db_name] = { 'last_query_time': time.strftime('%Y%m%d%H%M%S', start_time), 'hostname': host_name, 'values': list() }
+
+
+    # Ok, now we get stats for each db
+    while True:
+      now = time.time()
+      for db in dblist:
+        db_name = db[0]
+        print "Stats for %s on %s" % (db_name, stats[db_name]['hostname'])
+  
+        stat_sql="select to_char(sample_time, 'YYYYMMDDHH24MISS'), ACTIVE_SESS, EXECS_PER_SEC, RT_MS_PER_TXN, READS_SEC, WRITES_SEC, SESSION_CNT, HOST_CPU_PER from dbstat.active_sess where dbname='%s' and sample_time > to_date('%s', 'YYYYMMDDHH24MISS')" % (db_name, stats[db_name]['last_query_time'])
+        db_cursor.execute(stat_sql)
+  
+        # Output in list format based on the columns that are returned
+        db_output = db_cursor.fetchall()
+        if db_output:
+          for row in db_output:
+            stats[db_name]['last_query_time'] = row[0]
+          stats[db_name]['values'] = db_output
+
+      print "Writing RRDs"
+      write_rrd_files(stats, '/export/rrd')
+      #write_rrd_files(stats, '/export/apps/oracle-metrics/rrd')
+      new_now = time.time()
+      sleep_for(60, now, new_now)
+      if ((now - script_start) > 14400):
+        # Clean-up, then break from the loop and re-init
+        db_cursor.close()
+        db_connection.close()
+        print "Reloading database list"
+        break
+      
+
+if __name__ == '__main__':
+  main()

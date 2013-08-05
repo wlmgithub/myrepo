@@ -1,0 +1,40 @@
+table#dataentry  {
+	border: 1px solid #5f6f7e;
+	border-collapse: collapse;
+	width:100%;
+	margin:10px 0px;
+}
+table#dataentry th {
+
+	background-color:#DFEDCB;
+	border:1px solid #BCE1F4;
+	font-size: 12px;
+	font-weight:bold;
+	color: #27537A;
+	padding:2px 4px 2px 4px;
+	margin:0;
+}
+table#dataentry td {
+	margin:0;
+	padding:0;
+	border:1px solid #BCE1F4;
+	padding:2px 4px 2px 4px;
+	
+}
+table#dataentry tr#grey {
+	backgroun-color:#CCCCCC;
+        margin:0;
+        padding:0;
+        border:1px solid #BCE1F4;
+        padding:2px 4px 2px 4px;
+
+}
+table#dataentry input.text, table#dataentry input.step {
+	width:100%;
+	margin:0;
+	border-width:0;
+	border-style:none;
+}
+table#dataentry input:focus {
+	background-color:#f5f5f5;
+}

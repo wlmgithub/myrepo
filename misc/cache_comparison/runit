@@ -1,0 +1,61 @@
+#!/bin/bash
+#
+# lwang: purpose of this script is to compare caches sizes in both ech3 and ela4 hosts
+#
+#	this script has to be run on esv4-eng-portal where glulist is runnable
+#
+echo "starting..."
+
+ALL_SERVICES_ECH3=`glulist -e ech3`
+ALL_SERVICES_ELA4=`glulist -e ela4`
+
+if [[ "$@" != '' ]]; then
+  ALL_SERVICES_ECH3="$@"
+fi
+
+echo
+echo $ALL_SERVICES_ECH3
+echo
+
+for svc in $ALL_SERVICES_ECH3; do
+  if [[ $svc == "agent" ]]; then
+    continue
+  fi
+  echo
+  echo ---------------------------------- $svc 
+  echo
+  ALL_NODES_ECH3=`glulist -e ech3 -s $svc`
+  ALL_NODES_ELA4=`glulist -e ela4 -s $svc`
+
+  for h in $ALL_NODES_ECH3; do
+    if [[ "$svc" == "comm-inbox" ]]; then
+      ret=$(ssh $h " cd /export/content;  /bin/du -sh $svc/*_caches " 2>/dev/null)
+    else
+      ret=$(ssh $h " cd /export/content;  /bin/du -sh $svc/*_caches/* " 2>/dev/null)
+    fi
+    if [[ $ret != '' ]]; then
+      echo -ne  "    $h : \n$ret\n"
+    else
+      echo -ne  "    $h : $ret\n"
+    fi
+    echo -ne "\n"
+  done
+  echo -ne "    ~~~~~~~~~~~~~~~~~\n"
+
+  for h in $ALL_NODES_ELA4; do
+    if [[ "$svc" == "comm-inbox" ]]; then
+      ret=$(ssh $h " cd /export/content;  /bin/du -sh $svc/*_caches " 2>/dev/null)
+    else
+      ret=$(ssh $h " cd /export/content;  /bin/du -sh $svc/*_caches/* " 2>/dev/null)
+    fi
+    if [[ $ret != '' ]]; then
+      echo -ne  "    $h : \n$ret\n"
+    else
+      echo -ne  "    $h : $ret\n"
+    fi
+    echo -ne "\n"
+  done
+done
+
+exit
+

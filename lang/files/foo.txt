@@ -1,0 +1,7 @@
+aaa 11
+aaa 8
+bbb 5
+ccc 4
+aaa 2
+bbb 4
+ccc 2

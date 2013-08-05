@@ -1,0 +1,31 @@
+
+for i in $@ `cat z1`; do 
+  $ITOPS_HOME/bin/is_front_end_webapp $i
+  if [ $? == 1 ]; then
+    echo =================== $i
+    echo "$i is front end, skipping"
+    continue
+  fi
+
+#@hosts = `ruby -e '\$LOAD_PATH.push ENV["ITOPS_HOME"] + "/lib/ruby"; require "mycm"; puts MYCM.get_hosts_of("$env", "array") ' `;
+#  echo -n "$i"
+#  installed_dir=`ruby -e '$LOAD_PATH.push ENV["ITOPS_HOME"] + "/lib/ruby"; require "mycm"; puts  MYCM.get_installed_dir("ech3",$i) '`
+#  echo ${installed_dir}
+  echo
+  echo =================== $i
+  hosts=` ~/code/itops/bin/cmtool.pl -a get_pool_hosts -env ech3 -pool $i `
+#  echo $hosts
+
+  for h in $hosts; do
+    echo
+    echo $h
+#    ssh $h "if [ -e \"/export/content/glu/apps/$i\" ]; then cd /export/content/glu/apps/$i/i001/logs/; grep 'Using java version:' *.log *.out*; else cd /export/content/$i/i001/logs; grep 'Using java version:' *.log *.out; fi " 2>/dev/null
+    ssh $h "if [ -e \"/export/content/glu/apps/$i\" ]; then grep \"Using java version:\" /export/content/glu/apps/$i/i0[0-9][0-9]/logs/*.log  /export/content/glu/apps/$i/i0[0-9][0-9]/logs/*.out ; else grep \"Using java version:\" /export/content/$i/i0[0-9][0-9]/logs/*.log  /export/content/$i/i0[0-9][0-9]/logs/*.out; fi " 2>/dev/null
+  done
+done
+
+exit
+
+installed_dir=`ruby -e '$LOAD_PATH.push ENV["ITOPS_HOME"] + "/lib/ruby"; require "mycm"; puts  MYCM.get_installed_dir("ech3","leo")'`
+echo ${installed_dir}
+
