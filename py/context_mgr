@@ -1,0 +1,18 @@
+# credit: http://simeonfranklin.com
+
+from contextlib import contextmanager
+>>> import os, glob
+>>>
+>>> @contextmanager
+... def cd(path):
+...     try:
+...         cur = os.getcwd()
+...         os.chdir(os.path.expanduser(path))
+...         yield # end the "before" stuff. Could yield a value
+...     finally: # use try/finally in case the block crashes
+...         os.chdir(cur) # this is the "after" stuff
+...
+>>> with cd("~/work/talks"):
+...     print glob.glob("*txt")
+['contextlib.txt']
+
